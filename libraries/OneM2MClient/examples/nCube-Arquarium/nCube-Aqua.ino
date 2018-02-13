@@ -2,55 +2,51 @@
 #include <SPI.h>
 
 /**
-   Copyright (c) 2017, OCEAN
-   All rights reserved.
-   Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-   1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-   2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-   3. The name of the author may not be used to endorse or promote products derived from this software without specific prior written permission.
-   THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Copyright (c) 2017, OCEAN
+ * All rights reserved.
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products derived from this software without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-
-
-
+/**
+ * Created by Hana Jo in KETI on 2018-02-06.
+ */
 
 #include <ArduinoJson.h>
 
 #include "OneM2MClient.h"
 #include "m0_ota.h"
 
-#include "TasCCS811.h"
-
 #define LEDPIN 13
 
-#define LED_RED_PIN 10
-#define LED_GREEN_PIN 9
-#define LED_BLUE_PIN 6
-#define LED_GND_PIN 5
-
-TasCCS811 TasCCSSensor;
+#include "TasAquarium.h"
 
 const String FIRMWARE_VERSION = "1.0.0.1";
 
-const String AE_ID = "Sedu5";
-const String AE_NAME = "edu5";
-const String MQTT_BROKER_IP = "203.253.128.161";
-const uint16_t MQTT_BROKER_PORT = 1883;
+const String AE_ID = "SAqua5";         // guide: this is AE-ID used topic of mqtt
+const String AE_NAME = "aqua5";                    // guide: this is AE name
+const String MQTT_BROKER_IP = "203.253.128.161";  // guide: set IP address of MQTT broker for Mobius as IoT Platform
+const uint16_t MQTT_BROKER_PORT = 1883;           // guide: set MQTT port used
 OneM2MClient nCube(MQTT_BROKER_IP, MQTT_BROKER_PORT, AE_ID); // AE-ID
 
+TasAquarium Aqua;
+
 unsigned long req_previousMillis = 0;
-const long req_interval = 2000;
+const unsigned long req_interval = 2000;
 
-unsigned long co2_sensing_previousMillis = 0;
-const long co2_sensing_interval = (1000 * 10);
-
+// guide: set sensing period, modify or add for your sensors
 unsigned long temp_sensing_previousMillis = 0;
-const long temp_sensing_interval = (1000 * 9);
+unsigned long temp_sensing_interval = (1000 * 60); //
 
-unsigned long tvoc_sensing_previousMillis = 0;
-const long tvoc_sensing_interval = (1000 * 8);
+unsigned long ph_sensing_previousMillis = 0;
+unsigned long ph_sensing_interval = (1000 * 30); //
 
+unsigned long wlevel_sensing_previousMillis = 0;
+unsigned long wlevel_sensing_interval = (1000 * 60 * 60); //
+/////////////////////////////////////////////////////
 
 short action_flag = 0;
 short sensing_flag = 0;
@@ -123,7 +119,7 @@ void resp_callback(String topic, JsonObject &root) {
 
 void noti_callback(String topic, JsonObject &root) {
     if (state == "create_cin") {
-        if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[7].to + "/" + nCube.resource[7].rn)) { // guide: uri of subscription resource for notification
+        if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[8].to + "/" + nCube.resource[8].rn)) { // guide: uri of subscription resource for notification
             String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
             noti_con = con;
 
@@ -131,7 +127,15 @@ void noti_callback(String topic, JsonObject &root) {
             resp_rqi = String(rqi);
             control_flag = 2;
         }
-        else if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[6].to + "/" + nCube.resource[6].rn)) {
+        else if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[9].to + "/" + nCube.resource[9].rn)) { // guide: uri of subscription resource for notification
+            String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
+            noti_con = con;
+
+            const char *rqi = root["rqi"];
+            resp_rqi = String(rqi);
+            control_flag = 3;
+        }
+        else if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[7].to + "/" + nCube.resource[7].rn)) {
             String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
             noti_con = con;
 
@@ -161,33 +165,43 @@ void buildResource() {
 
     nCube.resource[index].ty = "3";
     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-    nCube.resource[index].rn = "co2";                   // nCube.resource[2].rn
+    nCube.resource[index].rn = "temp";
     nCube.resource[index++].status = 0;
 
     nCube.resource[index].ty = "3";
     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-    nCube.resource[index].rn = "led";                   // nCube.resource[3].rn
+    nCube.resource[index].rn = "ph";
     nCube.resource[index++].status = 0;
 
     nCube.resource[index].ty = "3";
     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-    nCube.resource[index].rn = "temp";                   // nCube.resource[4].rn
+    nCube.resource[index].rn = "waterlevel";
     nCube.resource[index++].status = 0;
 
     nCube.resource[index].ty = "3";
     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-    nCube.resource[index].rn = "tvoc";                   // nCube.resource[5].rn
+    nCube.resource[index].rn = "feeder";
     nCube.resource[index++].status = 0;
 
-    // Subscription resource
+    nCube.resource[index].ty = "3";
+    nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
+    nCube.resource[index].rn = "led";
+    nCube.resource[index++].status = 0;
+
+  //  Subscription resource
     nCube.resource[index].ty = "23";
     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn + '/' + nCube.resource[1].rn;
     nCube.resource[index].rn = "sub";                   // guide: do not modify, fix subscripton name for OTA - nCube.resource[6].rn
     nCube.resource[index++].status = 0;
 
     nCube.resource[index].ty = "23";
-    nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn + '/' + nCube.resource[3].rn;
-    nCube.resource[index].rn = "sub";                   // nCube.resource[7].rn
+    nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn + '/' + nCube.resource[5].rn;
+    nCube.resource[index].rn = "sub";
+    nCube.resource[index++].status = 0;
+
+    nCube.resource[index].ty = "23";
+    nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn + '/' + nCube.resource[6].rn;
+    nCube.resource[index].rn = "sub";
     nCube.resource[index++].status = 0;
 
     nCube.resource_count = index;
@@ -341,20 +355,15 @@ void publisher() {
     }
 }
 
+
 void setup() {
-    pinMode(LED_BLUE_PIN, OUTPUT);
-    pinMode(LED_GREEN_PIN, OUTPUT);
-    pinMode(LED_RED_PIN, OUTPUT);
-    pinMode(LED_GND_PIN, OUTPUT);
-
-    digitalWrite(LED_BLUE_PIN, HIGH);
-    digitalWrite(LED_GREEN_PIN, HIGH);
-    digitalWrite(LED_RED_PIN, HIGH);
-    digitalWrite(LED_GND_PIN, LOW);
-
     //while (!Serial);
     Serial.begin(9600);
 
+    Aqua.initLED();
+    Aqua.initTemp();
+    Aqua.initWaterLevel();
+    Aqua.initFeeder();
     delay(1000);
 
     nCube.begin();
@@ -366,23 +375,6 @@ void setup() {
 
     state = "create_ae";
     action_flag = 1;
-
-    if(!TasCCSSensor.begin()) {
-        Serial.println("Failed to start CCS811 sensor! Please check your wiring.");
-        while(1);
-    }
-
-    //calibrate temperature sensor
-    while(!TasCCSSensor.available());
-    float temp = TasCCSSensor.calculateTemperature();
-    TasCCSSensor.setTempOffset(temp - 25.0);
-
-    digitalWrite(LED_BLUE_PIN, LOW);
-    digitalWrite(LED_GREEN_PIN, LOW);
-    digitalWrite(LED_RED_PIN, LOW);
-    digitalWrite(LED_GND_PIN, LOW);
-
-    digitalWrite(LEDPIN, LOW);
 }
 
 void loop() {
@@ -394,80 +386,90 @@ void loop() {
                 req_previousMillis = currentMillis;
                 publisher();
             }
-            else if (currentMillis - co2_sensing_previousMillis >= co2_sensing_interval) {
-                co2_sensing_previousMillis = currentMillis;
-
-                if (state == "create_cin") {
-                    // guide: in here generate sensing data
-                    // if get sensing data directly, assign curValue sensing data and set sensing_flag to 1
-                    // if request sensing data to sensor, set sensing_flag to 0, in other code of receiving sensing data, assign curValue sensing data and set sensing_flag to 1
-
-                    if(TasCCSSensor.available()) {
-                        if(!TasCCSSensor.readData()) {
-                            curValue = String(TasCCSSensor.geteCO2()/10);
-                            sensing_flag = 1;
-                        }
-                        else {
-                            Serial.println("ERROR!");
-                        }
-                    }
-                }
-            }
-            else if (currentMillis - temp_sensing_previousMillis >= temp_sensing_interval) {
+            else if (currentMillis - temp_sensing_previousMillis >= temp_sensing_interval) { // temp
                 temp_sensing_previousMillis = currentMillis;
 
+                Serial.print("\r\n\r\n >>>>>>>> Aquarium Temperature : ");
+
                 if (state == "create_cin") {
-                    // guide: in here generate sensing data
+                    // in here generate sensing data
                     // if get sensing data directly, assign curValue sensing data and set sensing_flag to 1
                     // if request sensing data to sensor, set sensing_flag to 0, in other code of receiving sensing data, assign curValue sensing data and set sensing_flag to 1
 
-                    if(TasCCSSensor.available()) {
-                        float temp = TasCCSSensor.calculateTemperature();
-                        curValue2 = String(temp);
-                        sensing_flag = 2;
-                    }
+                    sensing_flag = 0;
+
+                    String con = String(Aqua.readTemperature());
+                    Serial.println(con + " 'C");
+
+                    curValue = con ;
+                    sensing_flag = 1;
                 }
             }
-            else if (currentMillis - tvoc_sensing_previousMillis >= tvoc_sensing_interval) {
-                tvoc_sensing_previousMillis = currentMillis;
+            else if (currentMillis - ph_sensing_previousMillis >= ph_sensing_interval) { // ph
+                ph_sensing_previousMillis = currentMillis;
+
+                Serial.print("\r\n\r\n >>>>>>>> Aquarium PH value : ");
 
                 if (state == "create_cin") {
-                    // guide: in here generate sensing data
+                    // in here generate sensing data
                     // if get sensing data directly, assign curValue sensing data and set sensing_flag to 1
                     // if request sensing data to sensor, set sensing_flag to 0, in other code of receiving sensing data, assign curValue sensing data and set sensing_flag to 1
 
-                    if(TasCCSSensor.available()) {
-                        if(!TasCCSSensor.readData()) {
-                            curValue3 = String(TasCCSSensor.getTVOC()/10);
-                            sensing_flag = 3;
-                        }
-                        else {
-                            Serial.println("ERROR!");
-                        }
+                    String con = String(Aqua.readPHSensor());
+                    Serial.println(con);
+
+                    curValue2 = con ;
+                    sensing_flag = 2;
+                }
+            }
+            else if (currentMillis - wlevel_sensing_previousMillis >= wlevel_sensing_interval) { // wlevel
+                wlevel_sensing_previousMillis = currentMillis;
+
+                Serial.print("\r\n\r\n >>>>>>>> Aquarium Water Level - ");
+
+                if (state == "create_cin") {
+                    // in here generate sensing data
+                    // if get sensing data directly, assign curValue sensing data and set sensing_flag to 1
+                    // if request sensing data to sensor, set sensing_flag to 0, in other code of receiving sensing data, assign curValue sensing data and set sensing_flag to 1
+                    String con = "";
+                    int levelstatus1 = Aqua.readWaterLevel();
+                    if (levelstatus1 == HIGH) {
+                        Serial.println("Full");
+                        con = "Full";
                     }
+
+                    if (levelstatus1 == LOW) {
+                        Serial.println("Empty");
+                        con = "Empty";
+                    }
+
+                    curValue3 =  con;
+                    sensing_flag = 3;
                 }
             }
             else {
                 if (state == "create_cin") {
+                    Aqua.loop();
+
                     if (sensing_flag == 1) {
                         rand_str(req_id, 8);
+                        nCube.createCin(req_id, (nCube.resource[1].to + "/" + nCube.resource[1].rn), curValue);
+                        sensing_flag = 0;
+                        digitalWrite(LEDPIN, HIGH);
+                    }
+
+                    else if(sensing_flag == 2) {
+                        rand_str(req_id, 8);
                         nCube.createCin(req_id, (nCube.resource[2].to + "/" + nCube.resource[2].rn), curValue);
-                        digitalWrite(LEDPIN, HIGH);
                         sensing_flag = 0;
+                        digitalWrite(LEDPIN, HIGH);
                     }
 
-                    else if (sensing_flag == 2) {
+                    else if(sensing_flag == 3) {
                         rand_str(req_id, 8);
-                        nCube.createCin(req_id, (nCube.resource[4].to + "/" + nCube.resource[4].rn), curValue2);
-                        digitalWrite(LEDPIN, HIGH);
+                        nCube.createCin(req_id, (nCube.resource[3].to + "/" + nCube.resource[3].rn), curValue);
                         sensing_flag = 0;
-                    }
-
-                    else if (sensing_flag == 3) {
-                        rand_str(req_id, 8);
-                        nCube.createCin(req_id, (nCube.resource[5].to + "/" + nCube.resource[5].rn), curValue3);
                         digitalWrite(LEDPIN, HIGH);
-                        sensing_flag = 0;
                     }
 
                     if (control_flag == 1) {
@@ -485,49 +487,28 @@ void loop() {
                     }
                     else if (control_flag == 2) {
                         control_flag = 0;
-                        // guide: in here control action code along to noti_con
+                       // guide: in here control action code along to noti_con
+                       if (noti_con == "1") {
+                           Serial.println("\r\n\r\n <<<<<<<< Aquarium feeder on\r\n\r\n");
+                           Aqua.feedFish(1);
+                       }
+                        String resp_body = "";
+                        resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + resp_rqi + "\"}";
+                        resp_body.toCharArray(body_buff, resp_body.length() + 1);
+                        nCube.response(body_buff);
+                    }
+                    else if (control_flag == 3) {
+                        control_flag = 0;
+                       // guide: in here control action code along to noti_con
 
-                        if (noti_con == "0") {
-                            digitalWrite(LED_BLUE_PIN, LOW);
-                            digitalWrite(LED_GREEN_PIN, LOW);
-                            digitalWrite(LED_RED_PIN, LOW);
-                        }
-                        else if (noti_con == "1") {
-                            digitalWrite(LED_BLUE_PIN, LOW);
-                            digitalWrite(LED_GREEN_PIN, LOW);
-                            digitalWrite(LED_RED_PIN, HIGH);
-                        }
-                        else if (noti_con == "2") {
-                            digitalWrite(LED_BLUE_PIN, LOW);
-                            digitalWrite(LED_GREEN_PIN, HIGH);
-                            digitalWrite(LED_RED_PIN, LOW);
-                        }
-                        else if (noti_con == "3") {
-                            digitalWrite(LED_BLUE_PIN, HIGH);
-                            digitalWrite(LED_GREEN_PIN, LOW);
-                            digitalWrite(LED_RED_PIN, LOW);
-                        }
-                        else if (noti_con == "4") {
-                            digitalWrite(LED_BLUE_PIN, HIGH);
-                            digitalWrite(LED_GREEN_PIN, HIGH);
-                            digitalWrite(LED_RED_PIN, LOW);
-                        }
-                        else if (noti_con == "5") {
-                            digitalWrite(LED_BLUE_PIN, HIGH);
-                            digitalWrite(LED_GREEN_PIN, LOW);
-                            digitalWrite(LED_RED_PIN, HIGH);
-                        }
-                        else if (noti_con == "6") {
-                            digitalWrite(LED_BLUE_PIN, LOW);
-                            digitalWrite(LED_GREEN_PIN, HIGH);
-                            digitalWrite(LED_RED_PIN, HIGH);
-                        }
-                        else if (noti_con == "7") {
-                            digitalWrite(LED_BLUE_PIN, HIGH);
-                            digitalWrite(LED_GREEN_PIN, HIGH);
-                            digitalWrite(LED_RED_PIN, HIGH);
-                        }
-
+                       if (noti_con == "1") {
+                           Serial.println("\r\n\r\n <<<<<<<< Aquarium led on\r\n\r\n");
+                           Aqua.showLED();
+                       }
+                       else {
+                           Serial.println("\r\n\r\n <<<<<<<< Aquarium led off\r\n\r\n");
+                           Aqua.stopLED();
+                       }
                         String resp_body = "";
                         resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + resp_rqi + "\"}";
                         resp_body.toCharArray(body_buff, resp_body.length() + 1);
