@@ -1,4 +1,4 @@
-# nCube-Thyme-Arduino
+# nCube:Thyme for Arduino
 ## Introduction
 nCube-Thyme-Arduino is a light version nCube for arduino devices. The project name: "nCube-Mint". nCube-Mint is a type of AE(oneM2M Resource Type) in software level. 
 
