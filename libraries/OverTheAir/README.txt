@@ -1,4 +1,4 @@
-extra_script.py is provided for OTA in environments using PlatformIO.
+extra_script.py is provided for OTA in environments using PlatformIO. 
 
 In platformio.ini file under your Arduino project directory,
 append script below
