@@ -12,7 +12,7 @@
  */
 
 /**
- * Created by Hana Jo in KETI on 2018-02-06.
+ * Created by Hana Jo in KETI on 2018-03-22.
  */
 
 #include <ArduinoJson.h>
@@ -45,7 +45,7 @@ unsigned long ph_sensing_previousMillis = 0;
 unsigned long ph_sensing_interval = (1000 * 30); //
 
 unsigned long wlevel_sensing_previousMillis = 0;
-unsigned long wlevel_sensing_interval = (1000 * 60 * 60); //
+unsigned long wlevel_sensing_interval = (1000 * 60); //
 /////////////////////////////////////////////////////
 
 short action_flag = 0;
@@ -453,21 +453,21 @@ void loop() {
 
                     if (sensing_flag == 1) {
                         rand_str(req_id, 8);
-                        nCube.createCin(req_id, (nCube.resource[1].to + "/" + nCube.resource[1].rn), curValue);
+                        nCube.createCin(req_id, (nCube.resource[2].to + "/" + nCube.resource[2].rn), curValue);
                         sensing_flag = 0;
                         digitalWrite(LEDPIN, HIGH);
                     }
 
                     else if(sensing_flag == 2) {
                         rand_str(req_id, 8);
-                        nCube.createCin(req_id, (nCube.resource[2].to + "/" + nCube.resource[2].rn), curValue);
+                        nCube.createCin(req_id, (nCube.resource[3].to + "/" + nCube.resource[3].rn), curValue2);
                         sensing_flag = 0;
                         digitalWrite(LEDPIN, HIGH);
                     }
 
                     else if(sensing_flag == 3) {
                         rand_str(req_id, 8);
-                        nCube.createCin(req_id, (nCube.resource[3].to + "/" + nCube.resource[3].rn), curValue);
+                        nCube.createCin(req_id, (nCube.resource[4].to + "/" + nCube.resource[4].rn), curValue3);
                         sensing_flag = 0;
                         digitalWrite(LEDPIN, HIGH);
                     }
