@@ -203,6 +203,7 @@ String OneM2MClient::validSur(String sur) {
 			return sub[i].to;
 		}
 	}
+	return "empty";
 }
 
 void OneM2MClient::createAE(String rqi, int index, String api)
