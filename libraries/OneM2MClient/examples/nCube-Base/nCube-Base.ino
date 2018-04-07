@@ -316,26 +316,12 @@ void noti_callback(String topic, JsonObject &root) {
             Serial.println(sur);
         }
 
-        if (nCube.validSur(sur) == ("/Mobius/"+AE_NAME+"/update")) { // for OTA, update <container> resource
+        String valid_sur = nCube.validSur(sur);
+        if (valid_sur != "empty") {
             const char *rqi = root["rqi"];
             String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
 
-            noti_q.ref[noti_q.push_idx] = "update";
-            noti_q.con[noti_q.push_idx] = con;
-            noti_q.rqi[noti_q.push_idx] = String(rqi);
-            noti_q.push_idx++;
-            if(noti_q.push_idx >= QUEUE_SIZE) {
-                noti_q.push_idx = 0;
-            }
-            if(noti_q.push_idx == noti_q.pop_idx) {
-                noti_q.pop_idx++;
-            }
-        }
-        else if (nCube.validSur(sur) == ("/Mobius/"+AE_NAME+"/led")) { // guide: uri of subscription resource for notification
-            const char *rqi = root["rqi"];
-            String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
-
-            noti_q.ref[noti_q.push_idx] = "led";
+            noti_q.ref[noti_q.push_idx] = valid_sur;
             noti_q.con[noti_q.push_idx] = con;
             noti_q.rqi[noti_q.push_idx] = String(rqi);
             noti_q.push_idx++;
@@ -457,16 +443,44 @@ void generateProcess() {
     }
 }
 
+String strRef[8];
+int strRef_length = 0;
+void Split(String sData, char cSeparator)
+{
+	int nCount = 0;
+	int nGetIndex = 0 ;
+    strRef_length = 0;
+
+	String sTemp = "";
+	String sCopy = sData;
+
+	while(true) {
+		nGetIndex = sCopy.indexOf(cSeparator);
+
+		if(-1 != nGetIndex) {
+			sTemp = sCopy.substring(0, nGetIndex);
+			strRef[strRef_length++] = sTemp;
+			sCopy = sCopy.substring(nGetIndex + 1);
+		}
+		else {
+            strRef[strRef_length++] = sCopy;
+			break;
+		}
+		++nCount;
+	}
+}
+
 void notiProcess() {
     if(noti_q.pop_idx != noti_q.push_idx) {
-        if(noti_q.ref[noti_q.pop_idx] == "led") {
+        Split(noti_q.ref[noti_q.pop_idx], '/');
+        if(strRef[strRef_length-1] == "led") {
             tasLed.setLED(noti_q.con[noti_q.pop_idx]);
 
             String resp_body = "";
             resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
             nCube.response(resp_body);
         }
-        else if(noti_q.ref[noti_q.pop_idx] == "update") {
+        else if(strRef[strRef_length-1] == "update") {
             if (noti_q.con[noti_q.pop_idx] == "active") {
                 OTAClient.start();   // active OTAClient upgrad process
 
