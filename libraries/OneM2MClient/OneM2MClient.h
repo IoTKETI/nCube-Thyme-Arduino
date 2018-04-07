@@ -20,6 +20,8 @@
 #include "Arduino.h"
 
 #include <WiFi101.h>
+#include <WiFiMDNSResponder.h>
+
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
@@ -39,6 +41,19 @@ typedef struct _topic_t {
   String noti_resp;
 } topic_t;
 
+#define _MQTT_INIT 1
+#define _MQTT_CONNECT 2
+#define _MQTT_CONNECTED 3
+#define _MQTT_RECONNECT 4
+#define _MQTT_READY 5
+#define _MQTT_IDLE 6
+
+#define AE_COUNT 1
+#define CNT_COUNT 10
+#define SUB_COUNT 5
+
+void mqttMessageHandler(char* topic_in, byte* payload, unsigned int length);
+
 class OneM2MClient : public WiFiClass
 {
   public:
@@ -49,7 +64,7 @@ class OneM2MClient : public WiFiClass
     void createSub(String rqi, int index);
     void createCin(String rqi, String to, String value);
 
-    void response(char* body_buff);
+    void response(String body_str);
 
     void setCallback(void (*callback1)(String topic, JsonObject& root), void (*callback2)(String topic, JsonObject& root));
 
@@ -59,10 +74,31 @@ class OneM2MClient : public WiFiClass
 
 	String getAeid();
 
+    void MQTT_init();
+    void MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8_t mac[6]);
+    void MQTT_chkconnect();
+
+    void configResource(uint8_t ty, String to, String rn);
+    String validSur(String sur);
+
     PubSubClient mqtt;
-    resource_t resource[10];
-	int resource_count;
+
+    resource_t ae[AE_COUNT];
+    int ae_count;
+    resource_t cnt[CNT_COUNT];
+    int cnt_count;
+    resource_t sub[SUB_COUNT];
+	int sub_count;
+
     topic_t _topic;
+
+    uint8_t MQTT_State;
+    char mqtt_id[11];
+
+    unsigned long mqtt_previousMillis;
+    unsigned long mqtt_interval; // count
+    unsigned long mqtt_led_interval; // ms
+    uint16_t mqtt_wait_count;
 
   private:
     char _ssid[M2M_MAX_SSID_LEN];
@@ -72,9 +108,7 @@ class OneM2MClient : public WiFiClass
     void buildResource();
     void initTopic();
     void request(String body_str);
-    bool WiFi_connect();
-    bool WiFi_reconnect();
-    bool MQTT_connect();
+
 
 
 	String AE_ID;
