@@ -17,8 +17,6 @@
 #include "OneM2MClient.h"
 #include "m0_ota.h"
 
-#include "TasLED.h"
-
 const int ledPin = 13; // LED pin for connectivity status indicator
 
 uint8_t USE_WIFI = 1;
@@ -51,26 +49,16 @@ unsigned long uploading_previousMillis = 0;
 const long uploading_interval = 100; // ms
 uint8_t UPLOAD_State = UPLOAD_UPLOADING;
 
-unsigned long generate_previousMillis = 0;
-const long generate_interval = 5000; // ms
-
-const String FIRMWARE_VERSION = "1.0.0.0";
-const String AE_NAME = "air0";
-const String AE_ID = "S" + AE_NAME;
-const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
-const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
-
 // for MQTT
 WiFiClient wifiClient;
 PubSubClient mqtt;
 
-OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT, AE_ID); // AE-ID
-
-TasLED tasLed;
-
 char req_id[10];
 String state = "create_ae";
 uint8_t sequence = 0;
+
+String strRef[8];
+int strRef_length = 0;
 
 #define QUEUE_SIZE 8
 typedef struct _queue_t {
@@ -84,7 +72,132 @@ typedef struct _queue_t {
 queue_t noti_q;
 queue_t upload_q;
 
-short control_flag = 0;
+// -----------------------------------------------------------------------------
+// User Define
+// Period of Sensor Data, can make more
+unsigned long generate_previousMillis = 0;
+const long generate_interval = 5000; // ms
+
+// Information of CSE as Mobius with MQTT
+const String FIRMWARE_VERSION = "1.0.0.0";
+const String AE_NAME = "air0";
+const String AE_ID = "S" + AE_NAME;
+const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
+const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
+
+OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT, AE_ID); // AE-ID
+
+// add TAS(Thing Adaptation Layer) for Sensor
+#include "TasLED.h"
+
+TasLED tasLed;
+
+// build tree of resource of oneM2M
+void buildResource() {
+    nCube.configResource(2, "/Mobius", AE_NAME);                    // AE resource
+
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "temp");            // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "tvoc");            // Container resource
+
+    nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
+    nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
+}
+
+// Period of generating sensor data
+void generateProcess() {
+    unsigned long currentMillis = millis();
+    if (currentMillis - generate_previousMillis >= generate_interval) {
+        generate_previousMillis = currentMillis;
+        if (state == "create_cin") {
+            rand_str(req_id, 8);
+            int con = (double) rand() / RAND_MAX * 7;
+
+            upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
+            upload_q.con[upload_q.push_idx] = String(con);
+            upload_q.rqi[upload_q.push_idx] = String(req_id);
+            upload_q.push_idx++;
+            if(upload_q.push_idx >= QUEUE_SIZE) {
+                upload_q.push_idx = 0;
+            }
+            if(upload_q.push_idx == upload_q.pop_idx) {
+                upload_q.pop_idx++;
+            }
+        }
+    }
+}
+
+// Process notification of Mobius for control
+void notiProcess() {
+    if(noti_q.pop_idx != noti_q.push_idx) {
+        Split(noti_q.ref[noti_q.pop_idx], '/');
+        if(strRef[strRef_length-1] == "led") {
+            tasLed.setLED(noti_q.con[noti_q.pop_idx]);
+
+            String resp_body = "";
+            resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
+            nCube.response(resp_body);
+        }
+        else if(strRef[strRef_length-1] == "update") {
+            if (noti_q.con[noti_q.pop_idx] == "active") {
+                OTAClient.start();   // active OTAClient upgrad process
+
+                String resp_body = "";
+                resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
+                nCube.response(resp_body);
+            }
+        }
+
+        noti_q.pop_idx++;
+        if(noti_q.pop_idx >= QUEUE_SIZE) {
+            noti_q.pop_idx = 0;
+        }
+    }
+}
+//------------------------------------------------------------------------------
+
+void setup() {
+    // configure the LED pin for output mode
+    pinMode(ledPin, OUTPUT);
+
+    //Initialize serial:
+    Serial.begin(9600);
+
+    noti_q.pop_idx = 0;
+    noti_q.push_idx = 0;
+    upload_q.pop_idx = 0;
+    upload_q.push_idx = 0;
+
+    WiFi_init();
+
+    delay(1000);
+
+    nCube.setCallback(resp_callback, noti_callback);
+
+    delay(500);
+
+    buildResource();
+    //init OTA client
+    OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
+
+    tasLed.init();
+    delay(500);
+    tasLed.setLED("0");
+}
+
+void loop() {
+    WiFi_chkconnect();
+    nCube.MQTT_chkconnect();
+
+    chkState();
+    publisher();
+    notiProcess();
+    otaProcess();
+    generateProcess();
+    uploadProcess();
+}
 
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789"
@@ -263,6 +376,41 @@ void printWiFiStatus() {
     Serial.println(" dBm");
 }
 
+void otaProcess() {
+    if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
+        if (OTAClient.finished()) {
+        }
+        else {
+            OTAClient.poll();
+        }
+    }
+}
+
+void Split(String sData, char cSeparator)
+{
+	int nCount = 0;
+	int nGetIndex = 0 ;
+    strRef_length = 0;
+
+	String sTemp = "";
+	String sCopy = sData;
+
+	while(true) {
+		nGetIndex = sCopy.indexOf(cSeparator);
+
+		if(-1 != nGetIndex) {
+			sTemp = sCopy.substring(0, nGetIndex);
+			strRef[strRef_length++] = sTemp;
+			sCopy = sCopy.substring(nGetIndex + 1);
+		}
+		else {
+            strRef[strRef_length++] = sCopy;
+			break;
+		}
+		++nCount;
+	}
+}
+
 void resp_callback(String topic, JsonObject &root) {
     int response_code = root["rsc"];
     String request_id = String(req_id);
@@ -274,28 +422,28 @@ void resp_callback(String topic, JsonObject &root) {
         if (response_code == 2000 || response_code == 2001 || response_code == 2002 || response_code == 4105 || response_code == 4004) {
             if (state == "create_ae") {
                 sequence++;
-                if(sequence >= nCube.ae_count) {
+                if(sequence >= nCube.getAeCount()) {
                     state = "create_cnt";
                     sequence = 0;
                 }
             }
             else if (state == "create_cnt") {
                 sequence++;
-                if(sequence >= nCube.cnt_count) {
+                if(sequence >= nCube.getCntCount()) {
                     state = "delete_sub";
                     sequence = 0;
                 }
             }
             else if(state == "delete_sub") {
                 sequence++;
-                if(sequence >= nCube.sub_count) {
+                if(sequence >= nCube.getSubCount()) {
                     state = "create_sub";
                     sequence = 0;
                 }
             }
             else if (state == "create_sub") {
                 sequence++;
-                if(sequence >= nCube.sub_count) {
+                if(sequence >= nCube.getSubCount()) {
                     state = "create_cin";
                     sequence = 0;
                 }
@@ -331,19 +479,6 @@ void noti_callback(String topic, JsonObject &root) {
             }
         }
     }
-}
-
-void buildResource() {
-    nCube.configResource(2, "/Mobius", AE_NAME);                    // AE resource
-
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "temp");            // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "tvoc");            // Container resource
-
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
 }
 
 void publisher() {
@@ -413,82 +548,6 @@ void chkState() {
     }
 }
 
-void generateProcess() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - generate_previousMillis >= generate_interval) {
-        generate_previousMillis = currentMillis;
-        if (state == "create_cin") {
-            rand_str(req_id, 8);
-            int con = (double) rand() / RAND_MAX * 7;
-
-            upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
-            upload_q.con[upload_q.push_idx] = String(con);
-            upload_q.rqi[upload_q.push_idx] = String(req_id);
-            upload_q.push_idx++;
-            if(upload_q.push_idx >= QUEUE_SIZE) {
-                upload_q.push_idx = 0;
-            }
-            if(upload_q.push_idx == upload_q.pop_idx) {
-                upload_q.pop_idx++;
-            }
-        }
-    }
-}
-
-String strRef[8];
-int strRef_length = 0;
-void Split(String sData, char cSeparator)
-{
-	int nCount = 0;
-	int nGetIndex = 0 ;
-    strRef_length = 0;
-
-	String sTemp = "";
-	String sCopy = sData;
-
-	while(true) {
-		nGetIndex = sCopy.indexOf(cSeparator);
-
-		if(-1 != nGetIndex) {
-			sTemp = sCopy.substring(0, nGetIndex);
-			strRef[strRef_length++] = sTemp;
-			sCopy = sCopy.substring(nGetIndex + 1);
-		}
-		else {
-            strRef[strRef_length++] = sCopy;
-			break;
-		}
-		++nCount;
-	}
-}
-
-void notiProcess() {
-    if(noti_q.pop_idx != noti_q.push_idx) {
-        Split(noti_q.ref[noti_q.pop_idx], '/');
-        if(strRef[strRef_length-1] == "led") {
-            tasLed.setLED(noti_q.con[noti_q.pop_idx]);
-
-            String resp_body = "";
-            resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
-            nCube.response(resp_body);
-        }
-        else if(strRef[strRef_length-1] == "update") {
-            if (noti_q.con[noti_q.pop_idx] == "active") {
-                OTAClient.start();   // active OTAClient upgrad process
-
-                String resp_body = "";
-                resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
-                nCube.response(resp_body);
-            }
-        }
-
-        noti_q.pop_idx++;
-        if(noti_q.pop_idx >= QUEUE_SIZE) {
-            noti_q.pop_idx = 0;
-        }
-    }
-}
-
 void uploadProcess() {
     if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
         unsigned long currentMillis = millis();
@@ -513,55 +572,4 @@ void uploadProcess() {
             }
         }
     }
-}
-
-void otaProcess() {
-    if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
-        if (OTAClient.finished()) {
-        }
-        else {
-            OTAClient.poll();
-        }
-    }
-}
-
-void setup() {
-    // configure the LED pin for output mode
-    pinMode(ledPin, OUTPUT);
-
-    //Initialize serial:
-    Serial.begin(9600);
-
-    noti_q.pop_idx = 0;
-    noti_q.push_idx = 0;
-    upload_q.pop_idx = 0;
-    upload_q.push_idx = 0;
-
-    WiFi_init();
-
-    delay(1000);
-
-    nCube.setCallback(resp_callback, noti_callback);
-
-    delay(500);
-
-    buildResource();
-    //init OTA client
-    OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
-
-    tasLed.init();
-    delay(500);
-    tasLed.setLED("0");
-}
-
-void loop() {
-    WiFi_chkconnect();
-    nCube.MQTT_chkconnect();
-
-    chkState();
-    publisher();
-    notiProcess();
-    otaProcess();
-    generateProcess();
-    uploadProcess();
 }

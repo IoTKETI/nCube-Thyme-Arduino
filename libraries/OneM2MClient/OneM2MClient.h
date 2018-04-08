@@ -68,9 +68,9 @@ class OneM2MClient : public WiFiClass
 
     void setCallback(void (*callback1)(String topic, JsonObject& root), void (*callback2)(String topic, JsonObject& root));
 
-    void begin();
-
-    bool chkConnect();
+    uint8_t getAeCount();
+    uint8_t getCntCount();
+    uint8_t getSubCount();
 
 	String getAeid();
 
@@ -81,7 +81,25 @@ class OneM2MClient : public WiFiClass
     void configResource(uint8_t ty, String to, String rn);
     String validSur(String sur);
 
-    PubSubClient mqtt;
+    uint8_t MQTT_State;
+
+  private:
+    char _ssid[M2M_MAX_SSID_LEN];
+    char _password[M2M_MAX_SSID_LEN];
+
+    void initTopic();
+    void request(String body_str);
+
+	String AE_ID;
+	String MOBIUS_MQTT_BROKER_IP;
+	uint16_t MOBIUS_MQTT_PORT;
+
+    char mqtt_id[11];
+
+    unsigned long mqtt_previousMillis;
+    unsigned long mqtt_interval; // count
+    unsigned long mqtt_led_interval; // ms
+    uint16_t mqtt_wait_count;
 
     resource_t ae[AE_COUNT];
     int ae_count;
@@ -92,28 +110,7 @@ class OneM2MClient : public WiFiClass
 
     topic_t _topic;
 
-    uint8_t MQTT_State;
-    char mqtt_id[11];
-
-    unsigned long mqtt_previousMillis;
-    unsigned long mqtt_interval; // count
-    unsigned long mqtt_led_interval; // ms
-    uint16_t mqtt_wait_count;
-
-  private:
-    char _ssid[M2M_MAX_SSID_LEN];
-    char _password[M2M_MAX_SSID_LEN];
-
-    void printWiFiStatus();
-    void buildResource();
-    void initTopic();
-    void request(String body_str);
-
-
-
-	String AE_ID;
-	String MOBIUS_MQTT_BROKER_IP;
-	uint16_t MOBIUS_MQTT_PORT;
+    PubSubClient mqtt;
 };
 
 #endif // ONEM2MCLIENT_H

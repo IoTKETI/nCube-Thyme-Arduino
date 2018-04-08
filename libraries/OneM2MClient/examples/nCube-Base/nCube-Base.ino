@@ -17,9 +17,6 @@
 #include "OneM2MClient.h"
 #include "m0_ota.h"
 
-#include "TasCO2.h"
-#include "TasLED.h"
-
 const int ledPin = 13; // LED pin for connectivity status indicator
 
 uint8_t USE_WIFI = 1;
@@ -52,27 +49,16 @@ unsigned long uploading_previousMillis = 0;
 const long uploading_interval = 100; // ms
 uint8_t UPLOAD_State = UPLOAD_UPLOADING;
 
-unsigned long generate_previousMillis = 0;
-const long generate_interval = 5000; // ms
-
-const String FIRMWARE_VERSION = "1.0.0.0";
-const String AE_NAME = "base0";
-const String AE_ID = "S" + AE_NAME;
-const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
-const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
-
 // for MQTT
 WiFiClient wifiClient;
 PubSubClient mqtt;
 
-OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT, AE_ID); // AE-ID
-
-TasLED tasLed;
-TasCO2 tasCO2Sensor;
-
 char req_id[10];
 String state = "create_ae";
 uint8_t sequence = 0;
+
+String strRef[8];
+int strRef_length = 0;
 
 #define QUEUE_SIZE 8
 typedef struct _queue_t {
@@ -86,7 +72,142 @@ typedef struct _queue_t {
 queue_t noti_q;
 queue_t upload_q;
 
-short control_flag = 0;
+// -----------------------------------------------------------------------------
+// User Define
+// Period of Sensor Data, can make more
+unsigned long generate_previousMillis = 0;
+const long generate_interval = 5000; // ms
+
+// Information of CSE as Mobius with MQTT
+const String FIRMWARE_VERSION = "1.0.0.0";
+const String AE_NAME = "base0";
+const String AE_ID = "S" + AE_NAME;
+const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
+const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
+
+OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT, AE_ID); // AE-ID
+
+// add TAS(Thing Adaptation Layer) for Sensor
+#include "TasCO2.h"
+#include "TasLED.h"
+
+TasLED tasLed;
+TasCO2 tasCO2Sensor;
+
+// build tree of resource of oneM2M
+void buildResource() {
+    nCube.configResource(2, "/Mobius", AE_NAME);                    // AE resource
+
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
+
+    nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
+    nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
+}
+
+// function of Sensor as CO2 : get Sensor Data
+void tasCO2Sensor_upload_callback(String con) {
+    if (state == "create_cin") {
+        rand_str(req_id, 8);
+        upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
+        upload_q.con[upload_q.push_idx] = "\"" + tasCO2Sensor.curValue + "\"";
+        upload_q.rqi[upload_q.push_idx] = String(req_id);
+        upload_q.push_idx++;
+        if(upload_q.push_idx >= QUEUE_SIZE) {
+            upload_q.push_idx = 0;
+        }
+        if(upload_q.push_idx == upload_q.pop_idx) {
+            upload_q.pop_idx++;
+        }
+    }
+}
+
+// Period of generating sensor data
+void generateProcess() {
+    unsigned long currentMillis = millis();
+    if (currentMillis - generate_previousMillis >= generate_interval) {
+        generate_previousMillis = currentMillis;
+        if (state == "create_cin") {
+            tasCO2Sensor.requestData();
+        }
+    }
+    else {
+        tasCO2Sensor.chkCO2Data();
+    }
+}
+
+// Process notification of Mobius for control
+void notiProcess() {
+    if(noti_q.pop_idx != noti_q.push_idx) {
+        Split(noti_q.ref[noti_q.pop_idx], '/');
+        if(strRef[strRef_length-1] == "led") {
+            tasLed.setLED(noti_q.con[noti_q.pop_idx]);
+
+            String resp_body = "";
+            resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
+            nCube.response(resp_body);
+        }
+        else if(strRef[strRef_length-1] == "update") {
+            if (noti_q.con[noti_q.pop_idx] == "active") {
+                OTAClient.start();   // active OTAClient upgrad process
+
+                String resp_body = "";
+                resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
+                nCube.response(resp_body);
+            }
+        }
+
+        noti_q.pop_idx++;
+        if(noti_q.pop_idx >= QUEUE_SIZE) {
+            noti_q.pop_idx = 0;
+        }
+    }
+}
+//------------------------------------------------------------------------------
+
+void setup() {
+    // configure the LED pin for output mode
+    pinMode(ledPin, OUTPUT);
+
+    //Initialize serial:
+    Serial.begin(9600);
+
+    noti_q.pop_idx = 0;
+    noti_q.push_idx = 0;
+    upload_q.pop_idx = 0;
+    upload_q.push_idx = 0;
+
+    WiFi_init();
+
+    delay(1000);
+
+    nCube.setCallback(resp_callback, noti_callback);
+
+    delay(500);
+
+    buildResource();
+    //init OTA client
+    OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
+
+    tasLed.init();
+    tasCO2Sensor.init();
+    tasCO2Sensor.setCallback(tasCO2Sensor_upload_callback);
+    delay(500);
+    tasLed.setLED("0");
+}
+
+void loop() {
+    WiFi_chkconnect();
+    nCube.MQTT_chkconnect();
+
+    chkState();
+    publisher();
+    notiProcess();
+    otaProcess();
+    generateProcess();
+    uploadProcess();
+}
 
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789"
@@ -265,6 +386,41 @@ void printWiFiStatus() {
     Serial.println(" dBm");
 }
 
+void otaProcess() {
+    if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
+        if (OTAClient.finished()) {
+        }
+        else {
+            OTAClient.poll();
+        }
+    }
+}
+
+void Split(String sData, char cSeparator)
+{
+	int nCount = 0;
+	int nGetIndex = 0 ;
+    strRef_length = 0;
+
+	String sTemp = "";
+	String sCopy = sData;
+
+	while(true) {
+		nGetIndex = sCopy.indexOf(cSeparator);
+
+		if(-1 != nGetIndex) {
+			sTemp = sCopy.substring(0, nGetIndex);
+			strRef[strRef_length++] = sTemp;
+			sCopy = sCopy.substring(nGetIndex + 1);
+		}
+		else {
+            strRef[strRef_length++] = sCopy;
+			break;
+		}
+		++nCount;
+	}
+}
+
 void resp_callback(String topic, JsonObject &root) {
     int response_code = root["rsc"];
     String request_id = String(req_id);
@@ -276,28 +432,28 @@ void resp_callback(String topic, JsonObject &root) {
         if (response_code == 2000 || response_code == 2001 || response_code == 2002 || response_code == 4105 || response_code == 4004) {
             if (state == "create_ae") {
                 sequence++;
-                if(sequence >= nCube.ae_count) {
+                if(sequence >= nCube.getAeCount()) {
                     state = "create_cnt";
                     sequence = 0;
                 }
             }
             else if (state == "create_cnt") {
                 sequence++;
-                if(sequence >= nCube.cnt_count) {
+                if(sequence >= nCube.getCntCount()) {
                     state = "delete_sub";
                     sequence = 0;
                 }
             }
             else if(state == "delete_sub") {
                 sequence++;
-                if(sequence >= nCube.sub_count) {
+                if(sequence >= nCube.getSubCount()) {
                     state = "create_sub";
                     sequence = 0;
                 }
             }
             else if (state == "create_sub") {
                 sequence++;
-                if(sequence >= nCube.sub_count) {
+                if(sequence >= nCube.getSubCount()) {
                     state = "create_cin";
                     sequence = 0;
                 }
@@ -333,17 +489,6 @@ void noti_callback(String topic, JsonObject &root) {
             }
         }
     }
-}
-
-void buildResource() {
-    nCube.configResource(2, "/Mobius", AE_NAME);                    // AE resource
-
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
-
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
 }
 
 void publisher() {
@@ -413,90 +558,6 @@ void chkState() {
     }
 }
 
-void tasCO2Sensor_upload_callback(String con) {
-    if (state == "create_cin") {
-        rand_str(req_id, 8);
-        upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
-        upload_q.con[upload_q.push_idx] = "\"" + tasCO2Sensor.curValue + "\"";
-        upload_q.rqi[upload_q.push_idx] = String(req_id);
-        upload_q.push_idx++;
-        if(upload_q.push_idx >= QUEUE_SIZE) {
-            upload_q.push_idx = 0;
-        }
-        if(upload_q.push_idx == upload_q.pop_idx) {
-            upload_q.pop_idx++;
-        }
-    }
-}
-
-
-void generateProcess() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - generate_previousMillis >= generate_interval) {
-        generate_previousMillis = currentMillis;
-        if (state == "create_cin") {
-            tasCO2Sensor.requestData();
-        }
-    }
-    else {
-        tasCO2Sensor.chkCO2Data();
-    }
-}
-
-String strRef[8];
-int strRef_length = 0;
-void Split(String sData, char cSeparator)
-{
-	int nCount = 0;
-	int nGetIndex = 0 ;
-    strRef_length = 0;
-
-	String sTemp = "";
-	String sCopy = sData;
-
-	while(true) {
-		nGetIndex = sCopy.indexOf(cSeparator);
-
-		if(-1 != nGetIndex) {
-			sTemp = sCopy.substring(0, nGetIndex);
-			strRef[strRef_length++] = sTemp;
-			sCopy = sCopy.substring(nGetIndex + 1);
-		}
-		else {
-            strRef[strRef_length++] = sCopy;
-			break;
-		}
-		++nCount;
-	}
-}
-
-void notiProcess() {
-    if(noti_q.pop_idx != noti_q.push_idx) {
-        Split(noti_q.ref[noti_q.pop_idx], '/');
-        if(strRef[strRef_length-1] == "led") {
-            tasLed.setLED(noti_q.con[noti_q.pop_idx]);
-
-            String resp_body = "";
-            resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
-            nCube.response(resp_body);
-        }
-        else if(strRef[strRef_length-1] == "update") {
-            if (noti_q.con[noti_q.pop_idx] == "active") {
-                OTAClient.start();   // active OTAClient upgrad process
-
-                String resp_body = "";
-                resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
-                nCube.response(resp_body);
-            }
-        }
-
-        noti_q.pop_idx++;
-        if(noti_q.pop_idx >= QUEUE_SIZE) {
-            noti_q.pop_idx = 0;
-        }
-    }
-}
-
 void uploadProcess() {
     if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
         unsigned long currentMillis = millis();
@@ -522,525 +583,3 @@ void uploadProcess() {
         }
     }
 }
-
-void otaProcess() {
-    if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
-        if (OTAClient.finished()) {
-        }
-        else {
-            OTAClient.poll();
-        }
-    }
-}
-
-void setup() {
-    // configure the LED pin for output mode
-    pinMode(ledPin, OUTPUT);
-
-    //Initialize serial:
-    Serial.begin(9600);
-
-    noti_q.pop_idx = 0;
-    noti_q.push_idx = 0;
-    upload_q.pop_idx = 0;
-    upload_q.push_idx = 0;
-
-    WiFi_init();
-
-    delay(1000);
-
-    nCube.setCallback(resp_callback, noti_callback);
-
-    delay(500);
-
-    buildResource();
-    //init OTA client
-    OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
-
-    tasLed.init();
-    tasCO2Sensor.init();
-    tasCO2Sensor.setCallback(tasCO2Sensor_upload_callback);
-    delay(500);
-    tasLed.setLED("0");
-}
-
-void loop() {
-    WiFi_chkconnect();
-    nCube.MQTT_chkconnect();
-
-    chkState();
-    publisher();
-    notiProcess();
-    otaProcess();
-    generateProcess();
-    uploadProcess();
-}
-
-
-
-// #include <Arduino.h>
-// #include <SPI.h>
-//
-// /**
-//    Copyright (c) 2017, OCEAN
-//    All rights reserved.
-//    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-//    1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-//    2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-//    3. The name of the author may not be used to endorse or promote products derived from this software without specific prior written permission.
-//    THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// */
-//
-// #include <ArduinoJson.h>
-//
-// #include "OneM2MClient.h"
-// #include "m0_ota.h"
-//
-// #include "TasCO2.h"
-//
-// #define LEDPIN 13
-//
-// #define LED_RED_PIN 10
-// #define LED_GREEN_PIN 9
-// #define LED_BLUE_PIN 6
-// #define LED_GND_PIN 5
-//
-// TasCO2 TasCO2Sensor;
-//
-// const String FIRMWARE_VERSION = "1.0.0.1";
-//
-// const String AE_ID = "Sedu5";
-// const String AE_NAME = "edu5";
-// const String MQTT_BROKER_IP = "203.253.128.161";
-// const uint16_t MQTT_BROKER_PORT = 1883;
-// OneM2MClient nCube(MQTT_BROKER_IP, MQTT_BROKER_PORT, AE_ID); // AE-ID
-//
-// unsigned long req_previousMillis = 0;
-// const long req_interval = 2000;
-//
-// unsigned long co2_sensing_previousMillis = 0;
-// const long co2_sensing_interval = (1000 * 5);
-//
-// short action_flag = 0;
-// short sensing_flag = 0;
-// short control_flag = 0;
-//
-// String noti_con = "";
-//
-// char body_buff[400];  //for inputting data to publish
-// char req_id[10];       //for generating random number for request packet id
-//
-// String resp_rqi = "";
-//
-// String state = "init";
-//
-// uint8_t g_idx = 0;
-//
-// String curValue = "";
-//
-// /*************************** Sketch Code ************************************/
-//
-// void rand_str(char *dest, size_t length) {
-//     char charset[] = "0123456789"
-//             "abcdefghijklmnopqrstuvwxyz"
-//             "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-//
-//     while (length-- > 0) {
-//         size_t index = (double) rand() / RAND_MAX * (sizeof charset - 1);
-//         *dest++ = charset[index];
-//     }
-//     *dest = '\0';
-// }
-//
-// void TasCO2Sensor_upload_callback(String con) {
-//     if (state == "create_cin") {
-//         curValue = "\"" + TasCO2Sensor.curValue + "\"";
-//         sensing_flag = 1;
-//     }
-// }
-//
-// void resp_callback(String topic, JsonObject &root) {
-//     int response_code = root["rsc"];
-//     String request_id = String(req_id);
-//     String response_id = root["rqi"];
-//
-//     if (request_id == response_id) {
-//         if (action_flag == 0) {
-//             if (response_code == 2000 || response_code == 2001 || response_code == 2002 || response_code == 4105) {
-//                 action_flag = 1;
-//                 if(nCube.resource[g_idx].status == 0) {
-//                     nCube.resource[g_idx].status = 1;
-//                 }
-//                 else {
-//                     nCube.resource[g_idx].status = 2;
-//                 }
-//             }
-//             else if (response_code == 4004) {
-//                 if(state == "delete_sub") {
-//                     action_flag = 1;
-//                     if(nCube.resource[g_idx].status == 0) {
-//                         nCube.resource[g_idx].status = 1;
-//                     }
-//                     else {
-//                         nCube.resource[g_idx].status = 2;
-//                     }
-//                 }
-//             }
-//         }
-//
-//         Serial.print(topic);
-//         Serial.println(F(" - RESP_TOPIC receive a message."));
-//     }
-// }
-//
-// void noti_callback(String topic, JsonObject &root) {
-//     if (state == "create_cin") {
-//         if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[5].to + "/" + nCube.resource[5].rn)) { // guide: uri of subscription resource for notification
-//             String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
-//             noti_con = con;
-//
-//             const char *rqi = root["rqi"];
-//             resp_rqi = String(rqi);
-//             control_flag = 2;
-//         }
-//         else if (root["pc"]["m2m:sgn"]["sur"] == (nCube.resource[4].to + "/" + nCube.resource[4].rn)) {
-//             String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
-//             noti_con = con;
-//
-//             const char *rqi = root["rqi"];
-//             resp_rqi = String(rqi);
-//             control_flag = 1;
-//         }
-//     }
-// }
-//
-// void buildResource() {
-//     // temperally build resource structure into Mobius as oneM2M IoT Platform
-//
-//     // AE resource
-//     uint8_t index = 0;
-//     nCube.resource[index].ty = "2";
-//     nCube.resource[index].to = "/Mobius";
-//     nCube.resource[index].rn = AE_NAME;
-//     nCube.resource[index++].status = 0;
-//
-//     // Container resource
-//     nCube.resource[index].ty = "3";
-//     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-//     nCube.resource[index].rn = "update";                 // guide: do no modify, fix container name for OTA - nCube.resource[1].rn
-//     nCube.resource[index++].status = 0;
-//
-//     nCube.resource[index].ty = "3";
-//     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-//     nCube.resource[index].rn = "co2";
-//     nCube.resource[index++].status = 0;
-//
-//     nCube.resource[index].ty = "3";
-//     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn;
-//     nCube.resource[index].rn = "led";
-//     nCube.resource[index++].status = 0;
-//
-//     // Subscription resource
-//     nCube.resource[index].ty = "23";
-//     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn + '/' + nCube.resource[1].rn;
-//     nCube.resource[index].rn = "sub";                   // guide: do not modify, fix subscripton name for OTA - nCube.resource[4].rn
-//     nCube.resource[index++].status = 0;
-//
-//     nCube.resource[index].ty = "23";
-//     nCube.resource[index].to = "/Mobius/" + nCube.resource[0].rn + '/' + nCube.resource[3].rn;
-//     nCube.resource[index].rn = "sub";
-//     nCube.resource[index++].status = 0;
-//
-//     nCube.resource_count = index;
-// }
-//
-// uint32_t sequence = 0;
-// void publisher() {
-//     int i = 0;
-//
-//     if (state == "create_ae") {
-//         Serial.print(state);
-//         Serial.print(" - ");
-//         if (action_flag == 1) {
-//             for (i = 0; i < nCube.resource_count; i++) {
-//                 if (nCube.resource[i].ty == "2" && nCube.resource[i].status == 0) {
-//                     action_flag = 0;
-//                     sequence = 0;
-//
-//                     g_idx = i;
-//
-//                     rand_str(req_id, 8);
-//                     Serial.print(String(sequence));
-//                     Serial.print(" - ");
-//                     Serial.println(String(req_id));
-//                     nCube.createAE(req_id, 0, "3.14");
-//                     break;
-//                 }
-//             }
-//
-//             if(action_flag == 1) {
-//                 state = "create_cnt";
-//                 Serial.println("");
-//             }
-//         }
-//         else {
-//             sequence++;
-//             if(sequence > 2) {
-//                 action_flag = 1;
-//             }
-//             Serial.println(String(sequence));
-//         }
-//     }
-//
-//     if (state == "create_cnt") {
-//         Serial.print(state);
-//         Serial.print(" - ");
-//         if (action_flag == 1) {
-//             for (i = 0; i < nCube.resource_count; i++) {
-//                 if (nCube.resource[i].ty == "3" && nCube.resource[i].status == 0) {
-//                     action_flag = 0;
-//                     sequence = 0;
-//
-//                     g_idx = i;
-//
-//                     rand_str(req_id, 8);
-//                     Serial.print(String(sequence));
-//                     Serial.print(" - ");
-//                     Serial.println(String(req_id));
-//                     nCube.createCnt(req_id, i);
-//                     break;
-//                 }
-//             }
-//
-//             if(action_flag == 1) {
-//                 state = "delete_sub";
-//                 Serial.println("");
-//             }
-//         }
-//         else {
-//             sequence++;
-//             if(sequence > 2) {
-//                 action_flag = 1;
-//             }
-//             Serial.println(String(sequence));
-//         }
-//     }
-//
-//     if (state == "delete_sub") {
-//         Serial.print(state);
-//         Serial.print(" - ");
-//         if (action_flag == 1) {
-//             for (i = 0; i < nCube.resource_count; i++) {
-//                 if (nCube.resource[i].ty == "23" && nCube.resource[i].status == 0) {
-//                     action_flag = 0;
-//                     sequence = 0;
-//
-//                     g_idx = i;
-//
-//                     rand_str(req_id, 8);
-//                     Serial.print(String(sequence));
-//                     Serial.print(" - ");
-//                     Serial.println(String(req_id));
-//                     nCube.deleteSub(req_id, i);
-//                     break;
-//                 }
-//             }
-//
-//             if(action_flag == 1) {
-//                 state = "create_sub";
-//                 Serial.println("");
-//             }
-//         }
-//         else {
-//             sequence++;
-//             if(sequence > 2) {
-//                 action_flag = 1;
-//             }
-//             Serial.println(String(sequence));
-//         }
-//     }
-//
-//     if (state == "create_sub") {
-//         Serial.print(state);
-//         Serial.print(" - ");
-//         if (action_flag == 1) {
-//             for (i = 0; i < nCube.resource_count; i++) {
-//                 if (nCube.resource[i].ty == "23" && nCube.resource[i].status == 1) {
-//                     action_flag = 0;
-//                     sequence = 0;
-//
-//                     g_idx = i;
-//
-//                     rand_str(req_id, 8);
-//                     Serial.print(String(sequence));
-//                     Serial.print(" - ");
-//                     Serial.println(String(req_id));
-//                     nCube.createSub(req_id, i);
-//                     break;
-//                 }
-//             }
-//
-//             if(action_flag == 1) {
-//                 state = "create_cin";
-//                 Serial.println("");
-//             }
-//         }
-//         else {
-//             sequence++;
-//             if(sequence > 2) {
-//                 action_flag = 1;
-//             }
-//             Serial.println(String(sequence));
-//         }
-//     }
-//
-//     else if (state == "create_cin") {
-//     }
-// }
-//
-// void setup() {
-//     pinMode(LED_BLUE_PIN, OUTPUT);
-//     pinMode(LED_GREEN_PIN, OUTPUT);
-//     pinMode(LED_RED_PIN, OUTPUT);
-//     pinMode(LED_GND_PIN, OUTPUT);
-//
-//     digitalWrite(LED_BLUE_PIN, HIGH);
-//     digitalWrite(LED_GREEN_PIN, HIGH);
-//     digitalWrite(LED_RED_PIN, HIGH);
-//     digitalWrite(LED_GND_PIN, LOW);
-//
-//     //while (!Serial);
-//     Serial.begin(115200);
-//
-//     delay(10);
-//
-//     nCube.begin();
-//
-//     nCube.setCallback(resp_callback, noti_callback);
-//
-//     buildResource();
-//
-//     //init OTA client
-//     OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
-//
-//     state = "create_ae";
-//     action_flag = 1;
-//
-//     TasCO2Sensor.init();
-//     TasCO2Sensor.setCallback(TasCO2Sensor_upload_callback);
-//
-//     digitalWrite(LED_BLUE_PIN, LOW);
-//     digitalWrite(LED_GREEN_PIN, LOW);
-//     digitalWrite(LED_RED_PIN, LOW);
-//     digitalWrite(LED_GND_PIN, LOW);
-//
-//     digitalWrite(LEDPIN, LOW);
-// }
-//
-// void loop() {
-//     if(nCube.chkConnect()) {
-//         if (OTAClient.finished()) {
-//             unsigned long currentMillis = millis();
-//
-//             if (currentMillis - req_previousMillis >= req_interval) {
-//                 req_previousMillis = currentMillis;
-//                 publisher();
-//             }
-//             else if (currentMillis - co2_sensing_previousMillis >= co2_sensing_interval) {
-//                 co2_sensing_previousMillis = currentMillis;
-//
-//                 if (state == "create_cin") {
-//                     // guide: in here generate sensing data
-//                     // if get sensing data directly, assign curValue sensing data and set sensing_flag to 1
-//                     // if request sensing data to sensor, set sensing_flag to 0, in other code of receiving sensing data, assign curValue sensing data and set sensing_flag to 1
-//
-//                     TasCO2Sensor.requestData();
-//                     sensing_flag = 0;
-//                 }
-//             }
-//             else {
-//                 if (state == "create_cin") {
-//                     if (sensing_flag == 1) {
-//                         rand_str(req_id, 8);
-//                         nCube.createCin(req_id, (nCube.resource[1].to + "/" + nCube.resource[1].rn), curValue);
-//                         sensing_flag = 0;
-//                     }
-//
-//                     if (control_flag == 1) {
-//                         control_flag = 0;
-//                         // guide: in here control action code along to noti_con
-//
-//                         if (noti_con == "active") {
-//                             OTAClient.start();   // active OTAClient upgrad process
-//                         }
-//
-//                         String resp_body = "";
-//                         resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + resp_rqi + "\"}";
-//                         resp_body.toCharArray(body_buff, resp_body.length() + 1);
-//                         nCube.response(body_buff);
-//                     }
-//                     else if (control_flag == 2) {
-//                         control_flag = 0;
-//                         // guide: in here control action code along to noti_con
-//
-//                         if (noti_con == "0") {
-//                             digitalWrite(LED_BLUE_PIN, LOW);
-//                             digitalWrite(LED_GREEN_PIN, LOW);
-//                             digitalWrite(LED_RED_PIN, LOW);
-//                         }
-//                         else if (noti_con == "1") {
-//                             digitalWrite(LED_BLUE_PIN, LOW);
-//                             digitalWrite(LED_GREEN_PIN, LOW);
-//                             digitalWrite(LED_RED_PIN, HIGH);
-//                         }
-//                         else if (noti_con == "2") {
-//                             digitalWrite(LED_BLUE_PIN, LOW);
-//                             digitalWrite(LED_GREEN_PIN, HIGH);
-//                             digitalWrite(LED_RED_PIN, LOW);
-//                         }
-//                         else if (noti_con == "3") {
-//                             digitalWrite(LED_BLUE_PIN, HIGH);
-//                             digitalWrite(LED_GREEN_PIN, LOW);
-//                             digitalWrite(LED_RED_PIN, LOW);
-//                         }
-//                         else if (noti_con == "4") {
-//                             digitalWrite(LED_BLUE_PIN, HIGH);
-//                             digitalWrite(LED_GREEN_PIN, HIGH);
-//                             digitalWrite(LED_RED_PIN, LOW);
-//                         }
-//                         else if (noti_con == "5") {
-//                             digitalWrite(LED_BLUE_PIN, HIGH);
-//                             digitalWrite(LED_GREEN_PIN, LOW);
-//                             digitalWrite(LED_RED_PIN, HIGH);
-//                         }
-//                         else if (noti_con == "6") {
-//                             digitalWrite(LED_BLUE_PIN, LOW);
-//                             digitalWrite(LED_GREEN_PIN, HIGH);
-//                             digitalWrite(LED_RED_PIN, HIGH);
-//                         }
-//                         else if (noti_con == "7") {
-//                             digitalWrite(LED_BLUE_PIN, HIGH);
-//                             digitalWrite(LED_GREEN_PIN, HIGH);
-//                             digitalWrite(LED_RED_PIN, HIGH);
-//                         }
-//
-//                         String resp_body = "";
-//                         resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + resp_rqi + "\"}";
-//                         resp_body.toCharArray(body_buff, resp_body.length() + 1);
-//                         nCube.response(body_buff);
-//                     }
-//                     TasCO2Sensor.chkCO2Data();
-//                 }
-//             }
-//         }
-//         else {
-//             OTAClient.poll();
-//         }
-//     }
-//     else {
-//         digitalWrite(LEDPIN, HIGH);
-//         delay(100);
-//         digitalWrite(LEDPIN, LOW);
-//         delay(100);
-//     }
-// }
