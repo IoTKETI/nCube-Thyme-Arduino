@@ -80,7 +80,7 @@ const long generate_interval = 5000; // ms
 
 // Information of CSE as Mobius with MQTT
 const String FIRMWARE_VERSION = "1.0.0.0";
-const String AE_NAME = "base0";
+const String AE_NAME = "air0";
 const String AE_ID = "S" + AE_NAME;
 const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
@@ -88,11 +88,9 @@ const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT, AE_ID); // AE-ID
 
 // add TAS(Thing Adaptation Layer) for Sensor
-#include "TasCO2.h"
 #include "TasLED.h"
 
 TasLED tasLed;
-TasCO2 tasCO2Sensor;
 
 // build tree of resource of oneM2M
 void buildResource() {
@@ -101,26 +99,11 @@ void buildResource() {
     nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
     nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
     nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "temp");            // Container resource
+    nCube.configResource(3, "/Mobius/"+AE_NAME, "tvoc");            // Container resource
 
     nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
     nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
-}
-
-// function of Sensor as CO2 : get Sensor Data
-void tasCO2Sensor_upload_callback(String con) {
-    if (state == "create_cin") {
-        rand_str(req_id, 8);
-        upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
-        upload_q.con[upload_q.push_idx] = "\"" + tasCO2Sensor.curValue + "\"";
-        upload_q.rqi[upload_q.push_idx] = String(req_id);
-        upload_q.push_idx++;
-        if(upload_q.push_idx >= QUEUE_SIZE) {
-            upload_q.push_idx = 0;
-        }
-        if(upload_q.push_idx == upload_q.pop_idx) {
-            upload_q.pop_idx++;
-        }
-    }
 }
 
 // Period of generating sensor data
@@ -129,11 +112,20 @@ void generateProcess() {
     if (currentMillis - generate_previousMillis >= generate_interval) {
         generate_previousMillis = currentMillis;
         if (state == "create_cin") {
-            tasCO2Sensor.requestData();
+            rand_str(req_id, 8);
+            int con = (double) rand() / RAND_MAX * 7;
+
+            upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
+            upload_q.con[upload_q.push_idx] = String(con);
+            upload_q.rqi[upload_q.push_idx] = String(req_id);
+            upload_q.push_idx++;
+            if(upload_q.push_idx >= QUEUE_SIZE) {
+                upload_q.push_idx = 0;
+            }
+            if(upload_q.push_idx == upload_q.pop_idx) {
+                upload_q.pop_idx++;
+            }
         }
-    }
-    else {
-        tasCO2Sensor.chkCO2Data();
     }
 }
 
@@ -191,8 +183,6 @@ void setup() {
     OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
 
     tasLed.init();
-    tasCO2Sensor.init();
-    tasCO2Sensor.setCallback(tasCO2Sensor_upload_callback);
     delay(500);
     tasLed.setLED("0");
 }

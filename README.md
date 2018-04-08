@@ -1,7 +1,10 @@
 # nCube:Thyme for Arduino
+## Version
+2.1.0 (20180408)
+
 ## Introduction
 nCube:Thyme for Arduino is a light version nCube for arduino devices. </br>
-The project name: "nCube-Base". nCube-Base is a type of AE(oneM2M Resource Type) in software level. 
+The project name: "nCube-Base". nCube-Base is a type of AE(oneM2M Resource Type) in software level.
 
 ## Hardware
 - Arduino Zero + WiFi Module or [Adafruit Feather M0 WiFi Board](https://www.adafruit.com/product/3061)
@@ -25,7 +28,7 @@ The sample source introduces how to use Adafruit Feather M0 WiFi Board to connec
 - Install Arduino IDE.
 - Download [nCube-Thyme-Arduino](https://github.com/IoTKETI/nCube-Thyme-Arduino/archive/master.zip).
 - Copy the libraries file to Arduino IDE libraries folder.</br>
-We provide nCube-Mint source as Arduino libraries and you need to copy or overwrite it to the Arduino IDE library home "c:\Users\[user name]\Document\Arduino\libraries". 
+We provide nCube-Mint source as Arduino libraries and you need to copy or overwrite it to the Arduino IDE library home "c:\Users\[user name]\Document\Arduino\libraries".
 
 ## Configuration
 

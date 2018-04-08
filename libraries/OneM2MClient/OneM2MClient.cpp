@@ -98,6 +98,16 @@ OneM2MClient::OneM2MClient(String broker, uint16_t port, String _aeid)
 	MQTT_State = _MQTT_INIT;
 }
 
+uint8_t OneM2MClient::getAeCount() {
+	return ae_count;
+}
+uint8_t OneM2MClient::getCntCount() {
+	return cnt_count;
+}
+uint8_t OneM2MClient::getSubCount() {
+	return sub_count;
+}
+
 void OneM2MClient::MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8_t mac[6]) {
 	mqtt = _mqtt;
 
@@ -203,6 +213,7 @@ String OneM2MClient::validSur(String sur) {
 			return sub[i].to;
 		}
 	}
+	return "empty";
 }
 
 void OneM2MClient::createAE(String rqi, int index, String api)
@@ -352,7 +363,6 @@ void OneM2MClient::setCallback(void (*callback1)(String topic, JsonObject& root)
 	_mqtt_noti_callback = callback2;
 }
 
-
 void OneM2MClient::initTopic() {
 	_topic.req        = "/oneM2M/req/" + AE_ID + "/Mobius/json";
 	_topic.resp       = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
@@ -360,22 +370,6 @@ void OneM2MClient::initTopic() {
 	_topic.noti       = "/oneM2M/req/Mobius/" + AE_ID + "/json";
 	_topic.noti_resp  = "/oneM2M/resp/Mobius/" + AE_ID + "/json";
 }
-
-
-void OneM2MClient::begin()
-{
-	//
-	//
-	// // begin MQTT
-	// WiFiClient wifiClient;
-	// PubSubClient _mqtt(wifiClient);
-	// mqtt = _mqtt;
-	//
-	// char ip[16];
-	// MOBIUS_MQTT_BROKER_IP.toCharArray(ip, 16);
-	// mqtt.setServer(ip, MOBIUS_MQTT_PORT);
-}
-
 
 String OneM2MClient::getAeid() {
 	return AE_ID;
