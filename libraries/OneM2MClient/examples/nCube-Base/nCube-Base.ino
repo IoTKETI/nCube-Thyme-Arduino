@@ -209,6 +209,10 @@ void loop() {
     uploadProcess();
 }
 
+//------------------------------------------------------------------------------
+// nCube functions
+//------------------------------------------------------------------------------
+
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789"
             "abcdefghijklmnopqrstuvwxyz"
