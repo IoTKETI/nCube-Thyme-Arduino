@@ -57,7 +57,7 @@ void mqttMessageHandler(char* topic_in, byte* payload, unsigned int length);
 class OneM2MClient : public WiFiClass
 {
   public:
-    OneM2MClient(String broker, uint16_t port, String _aeid);
+    OneM2MClient(String broker, uint16_t port);
     void createAE(String rqi, int index, String api);
     void createCnt(String rqi, int index);
     void deleteSub(String rqi, int index);
@@ -74,7 +74,7 @@ class OneM2MClient : public WiFiClass
 
 	String getAeid();
 
-    void MQTT_init();
+    void MQTT_init(String _aeid);
     void MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8_t mac[6]);
     void MQTT_chkconnect();
 

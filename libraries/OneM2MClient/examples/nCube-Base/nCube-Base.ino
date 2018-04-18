@@ -85,7 +85,7 @@ const String AE_ID = "S" + AE_NAME;
 const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
-OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT, AE_ID); // AE-ID
+OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT); // AE-ID
 
 // add TAS(Thing Adaptation Layer) for Sensor
 #include "TasCO2.h"
@@ -287,7 +287,7 @@ void WiFi_chkconnect() {
                 upload_q.pop_idx = 0;
                 upload_q.push_idx = 0;
             }
-            nCube.MQTT_init();
+            nCube.MQTT_init(AE_ID);
         }
         else if(WIFI_State == WIFI_CONNECT) {
             unsigned long currentMillis = millis();
