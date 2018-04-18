@@ -75,25 +75,13 @@ void mqttMessageHandler(char* topic_in, byte* payload, unsigned int length) {
 	}
 }
 
-OneM2MClient::OneM2MClient(String broker, uint16_t port, String _aeid)
+OneM2MClient::OneM2MClient(String broker, uint16_t port)
 {
-	AE_ID = _aeid;
 	MOBIUS_MQTT_BROKER_IP = broker;
 	MOBIUS_MQTT_PORT = port;
 
 	_mqtt_resp_callback = NULL;
 	_mqtt_noti_callback = NULL;
-
-	initTopic();
-
-	mqtt_previousMillis = 0;
-    mqtt_interval = 10; // count
-    mqtt_led_interval = 500; // ms
-    mqtt_wait_count = 0;
-
-	ae_count = 0;
-	cnt_count = 0;
-	sub_count = 0;
 
 	MQTT_State = _MQTT_INIT;
 }
@@ -122,7 +110,23 @@ void OneM2MClient::MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8
 	mqtt_wait_count = 0;
 }
 
-void OneM2MClient::MQTT_init() {
+void OneM2MClient::MQTT_init(String _aeid)
+{
+	AE_ID = _aeid;
+	_mqtt_resp_callback = NULL;
+	_mqtt_noti_callback = NULL;
+
+	initTopic();
+
+	mqtt_previousMillis = 0;
+    mqtt_interval = 10; // count
+    mqtt_led_interval = 500; // ms
+    mqtt_wait_count = 0;
+
+	ae_count = 0;
+	cnt_count = 0;
+	sub_count = 0;
+
 	MQTT_State = _MQTT_INIT;
 }
 
