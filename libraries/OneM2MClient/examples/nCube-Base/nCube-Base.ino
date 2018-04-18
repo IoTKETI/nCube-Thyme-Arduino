@@ -321,6 +321,7 @@ void WiFi_chkconnect() {
                     char ip[16];
                     MOBIUS_MQTT_BROKER_IP.toCharArray(ip, 16);
 
+                    nCube.MQTT_init(AE_ID);
                     nCube.MQTT_ready(_mqtt, ip, MOBIUS_MQTT_BROKER_PORT, mac);
 
                     digitalWrite(ledPin, LOW);
