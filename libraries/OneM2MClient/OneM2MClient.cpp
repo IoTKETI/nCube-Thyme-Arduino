@@ -83,6 +83,15 @@ OneM2MClient::OneM2MClient(String broker, uint16_t port)
 	_mqtt_resp_callback = NULL;
 	_mqtt_noti_callback = NULL;
 
+	mqtt_previousMillis = 0;
+    mqtt_interval = 10; // count
+    mqtt_led_interval = 500; // ms
+    mqtt_wait_count = 0;
+
+	ae_count = 0;
+	cnt_count = 0;
+	sub_count = 0;
+
 	MQTT_State = _MQTT_INIT;
 }
 
@@ -113,19 +122,8 @@ void OneM2MClient::MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8
 void OneM2MClient::MQTT_init(String _aeid)
 {
 	AE_ID = _aeid;
-	_mqtt_resp_callback = NULL;
-	_mqtt_noti_callback = NULL;
 
 	initTopic();
-
-	mqtt_previousMillis = 0;
-    mqtt_interval = 10; // count
-    mqtt_led_interval = 500; // ms
-    mqtt_wait_count = 0;
-
-	ae_count = 0;
-	cnt_count = 0;
-	sub_count = 0;
 
 	MQTT_State = _MQTT_INIT;
 }
@@ -152,6 +150,8 @@ void OneM2MClient::MQTT_chkconnect() {
                     _topic.resp.toCharArray(resp_topic, _topic.resp.length()+1);
                     _topic.noti.toCharArray(noti_topic, _topic.noti.length()+1);
 
+					mqtt.unsubscribe(resp_topic);
+					mqtt.unsubscribe(noti_topic);
         			if (mqtt.subscribe(resp_topic)) {
         				Serial.println(_topic.resp + " Successfully subscribed");
                         if (mqtt.subscribe(noti_topic)) {

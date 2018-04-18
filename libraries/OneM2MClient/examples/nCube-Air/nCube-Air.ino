@@ -80,7 +80,7 @@ const long generate_interval = 5000; // ms
 
 // Information of CSE as Mobius with MQTT
 const String FIRMWARE_VERSION = "1.0.0.0";
-const String AE_NAME = "air0";
+const String AE_NAME = "air1";
 const String AE_ID = "S" + AE_NAME;
 const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
@@ -311,6 +311,7 @@ void WiFi_chkconnect() {
                     char ip[16];
                     MOBIUS_MQTT_BROKER_IP.toCharArray(ip, 16);
 
+                    nCube.MQTT_init(AE_ID);
                     nCube.MQTT_ready(_mqtt, ip, MOBIUS_MQTT_BROKER_PORT, mac);
 
                     digitalWrite(ledPin, LOW);
