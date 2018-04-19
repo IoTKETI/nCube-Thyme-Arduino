@@ -1,0 +1,15 @@
+{
+    "name": "OneM2MClient",
+    "keywords": "oneM2M, wifi, mqtt, iot",
+    "description": "oneM2M is a standard for Internet of Thing. This library allows you to send and receive MQTT messages which is according to the oneM2M standard. MQTT uses the PubSubClient library. It supports all Arduino WiFi Client compatible hardware.",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/IoTKETI/nCube-Thyme-Arduino.git"
+    },
+    "homepage": "https://github.com/IoTKETI/nCube-Thyme-Arduino",
+    "version": "2.1.1",
+    "exclude": "tests",
+    "examples": "examples/*/*.ino",
+    "frameworks": "arduino",
+    "platforms": "*"
+}
