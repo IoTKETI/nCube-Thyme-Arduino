@@ -1,0 +1,4 @@
+2.1.1
+   * update code for mqtt connection along modify oneM2MClient library
+   * update code for oneM2MClient library seperate to set AE-ID for MQTT
+   * optimize code, seperate part of user defined code
