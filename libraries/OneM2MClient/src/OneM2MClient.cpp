@@ -157,6 +157,7 @@ void OneM2MClient::MQTT_chkconnect() {
                         if (mqtt.subscribe(noti_topic)) {
             				Serial.println(_topic.noti + " Successfully subscribed");
                             MQTT_State = _MQTT_CONNECTED;
+							sequence = 0;
             			}
         			}
         		}
@@ -177,9 +178,8 @@ void OneM2MClient::MQTT_chkconnect() {
         }
     }
     else if(MQTT_State == _MQTT_CONNECTED) {
-        if (mqtt.connected()) { // Stop if already connected.
-    		mqtt.loop();
-    		return;
+		if(mqtt.loop()) {
+			return;
     	}
 
         MQTT_State = _MQTT_CONNECT;
@@ -359,6 +359,29 @@ void OneM2MClient::response(String body_str)
 		Serial.print("] ----> ");
 		Serial.println(length+1);
 		Serial.println(out_message);
+	}
+}
+
+void OneM2MClient::heartbeat() {
+	String heartbeatTopic = "/nCube/heartbeat/" + AE_ID;
+	char heartbeat_topic[heartbeatTopic.length()+1];
+	heartbeatTopic.toCharArray(heartbeat_topic, heartbeatTopic.length()+1);
+
+	String heartbeatMessage = String(sequence++);
+	char heartbeat_message[heartbeatMessage.length()+1];
+	heartbeatMessage.toCharArray(heartbeat_message, heartbeatMessage.length()+1);
+
+	unsigned int length = heartbeatMessage.length();
+
+	if (!mqtt.publish(heartbeat_topic, heartbeat_message)) {
+		Serial.println(F("Send heartbeat Failed"));
+	}
+	else {
+		Serial.print("Send heartbeat [");
+		Serial.print(heartbeatTopic);
+		Serial.print("] ----> ");
+		Serial.println(length+1);
+		Serial.println(heartbeatMessage);
 	}
 }
 

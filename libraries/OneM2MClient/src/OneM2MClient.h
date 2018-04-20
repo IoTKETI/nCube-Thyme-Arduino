@@ -64,6 +64,8 @@ class OneM2MClient : public WiFiClass
     void createSub(String rqi, int index);
     void createCin(String rqi, String to, String value);
 
+    void heartbeat();
+
     void response(String body_str);
 
     void setCallback(void (*callback1)(String topic, JsonObject& root), void (*callback2)(String topic, JsonObject& root));
@@ -109,6 +111,8 @@ class OneM2MClient : public WiFiClass
 	int sub_count;
 
     topic_t _topic;
+
+    unsigned long sequence;
 
     PubSubClient mqtt;
 };
