@@ -38,15 +38,16 @@ const long wifi_led_interval = 100; // ms
 uint16_t wifi_wait_count = 0;
 
 unsigned long req_previousMillis = 0;
-const long req_interval = 1500; // ms
+const long req_interval = 2000; // ms
 
 unsigned long chk_previousMillis = 0;
 const long chk_interval = 1000; // ms
+uint8_t chk_count = 0;
 
 #define UPLOAD_UPLOADING 2
 #define UPLOAD_UPLOADED 3
 unsigned long uploading_previousMillis = 0;
-const long uploading_interval = 100; // ms
+const long uploading_interval = 250; // ms
 uint8_t UPLOAD_State = UPLOAD_UPLOADING;
 
 // for MQTT
@@ -76,7 +77,7 @@ queue_t upload_q;
 // User Define
 // Period of Sensor Data, can make more
 unsigned long generate_previousMillis = 0;
-const long generate_interval = 5000; // ms
+const long generate_interval = 180000; // ms
 
 // Information of CSE as Mobius with MQTT
 const String FIRMWARE_VERSION = "1.0.0.0";
@@ -107,7 +108,7 @@ void buildResource() {
 }
 
 // Period of generating sensor data
-void generateProcess() {
+void genProcess() {
     unsigned long currentMillis = millis();
     if (currentMillis - generate_previousMillis >= generate_interval) {
         generate_previousMillis = currentMillis;
@@ -188,20 +189,27 @@ void setup() {
 }
 
 void loop() {
-    WiFi_chkconnect();
-    nCube.MQTT_chkconnect();
+    // nCube loop
+    nCube_loop();
 
-    chkState();
-    publisher();
+    // user defined loop
     notiProcess();
-    otaProcess();
-    generateProcess();
-    uploadProcess();
+    genProcess();
 }
 
 //------------------------------------------------------------------------------
 // nCube functions
 //------------------------------------------------------------------------------
+
+void nCube_loop() {
+    WiFi_chkconnect();
+    nCube.MQTT_chkconnect();
+
+    chkState();
+    publisher();
+    otaProcess();
+    uploadProcess();
+}
 
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789"
@@ -391,6 +399,32 @@ void otaProcess() {
     }
 }
 
+void chkState() {
+    unsigned long currentMillis = millis();
+    if (currentMillis - chk_previousMillis >= chk_interval) {
+        chk_previousMillis = currentMillis;
+
+        if(WIFI_State == WIFI_CONNECT) {
+            Serial.println("WIFI_CONNECT");
+        }
+        else if(WIFI_State == WIFI_RECONNECT) {
+            Serial.println("WIFI_RECONNECT");
+        }
+
+        if(nCube.MQTT_State == _MQTT_CONNECT) {
+            Serial.println("_MQTT_CONNECT");
+        }
+
+        if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
+            chk_count++;
+            if(chk_count > 10) {
+                chk_count = 0;
+                nCube.heartbeat();
+            }
+        }
+    }
+}
+
 void Split(String sData, char cSeparator)
 {
 	int nCount = 0;
@@ -416,6 +450,36 @@ void Split(String sData, char cSeparator)
 	}
 }
 
+void noti_callback(String topic, JsonObject &root) {
+    if (state == "create_cin") {
+        String sur = root["pc"]["m2m:sgn"]["sur"];
+        if(sur.charAt(0) != '/') {
+            sur = '/' + sur;
+            Serial.println(sur);
+        }
+        else {
+            Serial.println(sur);
+        }
+
+        String valid_sur = nCube.validSur(sur);
+        if (valid_sur != "empty") {
+            const char *rqi = root["rqi"];
+            String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
+
+            noti_q.ref[noti_q.push_idx] = valid_sur;
+            noti_q.con[noti_q.push_idx] = con;
+            noti_q.rqi[noti_q.push_idx] = String(rqi);
+            noti_q.push_idx++;
+            if(noti_q.push_idx >= QUEUE_SIZE) {
+                noti_q.push_idx = 0;
+            }
+            if(noti_q.push_idx == noti_q.pop_idx) {
+                noti_q.pop_idx++;
+            }
+        }
+    }
+}
+
 void resp_callback(String topic, JsonObject &root) {
     int response_code = root["rsc"];
     String request_id = String(req_id);
@@ -423,7 +487,7 @@ void resp_callback(String topic, JsonObject &root) {
 
     Serial.println(response_code);
 
-    if (request_id == response_id) {
+//    if (request_id == response_id) {
         if (response_code == 2000 || response_code == 2001 || response_code == 2002 || response_code == 4105 || response_code == 4004) {
             if (state == "create_ae") {
                 sequence++;
@@ -455,35 +519,8 @@ void resp_callback(String topic, JsonObject &root) {
             }
         }
         digitalWrite(ledPin, LOW);
-    }
-}
-
-void noti_callback(String topic, JsonObject &root) {
-    if (state == "create_cin") {
-        String sur = root["pc"]["m2m:sgn"]["sur"];
-        Serial.println(sur);
-        if(sur.charAt(0) != '/') {
-            sur = '/' + sur;
-            Serial.println(sur);
-        }
-
-        String valid_sur = nCube.validSur(sur);
-        if (valid_sur != "empty") {
-            const char *rqi = root["rqi"];
-            String con = root["pc"]["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"];
-
-            noti_q.ref[noti_q.push_idx] = valid_sur;
-            noti_q.con[noti_q.push_idx] = con;
-            noti_q.rqi[noti_q.push_idx] = String(rqi);
-            noti_q.push_idx++;
-            if(noti_q.push_idx >= QUEUE_SIZE) {
-                noti_q.push_idx = 0;
-            }
-            if(noti_q.push_idx == noti_q.pop_idx) {
-                noti_q.pop_idx++;
-            }
-        }
-    }
+        UPLOAD_State = UPLOAD_UPLOADED;
+//    }
 }
 
 void publisher() {
@@ -531,24 +568,6 @@ void publisher() {
             else if (state == "create_cin") {
                 //Serial.print(state + " - ");
             }
-        }
-    }
-}
-
-void chkState() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - chk_previousMillis >= chk_interval) {
-        chk_previousMillis = currentMillis;
-
-        if(WIFI_State == WIFI_CONNECT) {
-            Serial.println("WIFI_CONNECT");
-        }
-        else if(WIFI_State == WIFI_RECONNECT) {
-            Serial.println("WIFI_RECONNECT");
-        }
-
-        if(nCube.MQTT_State == _MQTT_CONNECT) {
-            Serial.println("_MQTT_CONNECT");
         }
     }
 }
