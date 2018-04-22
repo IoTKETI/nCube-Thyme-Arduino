@@ -41,67 +41,45 @@ typedef struct _topic_t {
   String noti_resp;
 } topic_t;
 
-#define _MQTT_INIT 1
-#define _MQTT_CONNECT 2
-#define _MQTT_CONNECTED 3
-#define _MQTT_RECONNECT 4
-#define _MQTT_READY 5
-#define _MQTT_IDLE 6
-
 #define AE_COUNT 1
 #define CNT_COUNT 10
 #define SUB_COUNT 5
 
-void mqttMessageHandler(char* topic_in, byte* payload, unsigned int length);
-
 class OneM2MClient : public WiFiClass
 {
   public:
-    OneM2MClient(String broker, uint16_t port);
-    void createAE(String rqi, int index, String api);
-    void createCnt(String rqi, int index);
-    void deleteSub(String rqi, int index);
-    void createSub(String rqi, int index);
-    void createCin(String rqi, String to, String value);
+    OneM2MClient();
+    void createAE(PubSubClient mqtt, String rqi, int index, String api);
+    void createCnt(PubSubClient mqtt, String rqi, int index);
+    void deleteSub(PubSubClient mqtt, String rqi, int index);
+    void createSub(PubSubClient mqtt, String rqi, int index);
+    void createCin(PubSubClient mqtt, String rqi, String to, String value);
 
-    void heartbeat();
+    void heartbeat(PubSubClient mqtt);
 
-    void response(String body_str);
-
-    void setCallback(void (*callback1)(String topic, JsonObject& root), void (*callback2)(String topic, JsonObject& root));
+    void response(PubSubClient mqtt, String body_str);
 
     uint8_t getAeCount();
     uint8_t getCntCount();
     uint8_t getSubCount();
 
 	String getAeid();
+    String getRespTopic();
+    String getReqTopic();
+    String getNotiTopic();
+    String getNotiRespTopic();
 
-    void MQTT_init(String _aeid);
-    void MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8_t mac[6]);
-    void MQTT_chkconnect();
+    void Init(String _brokerip, String _aeid);
 
     void configResource(uint8_t ty, String to, String rn);
     String validSur(String sur);
 
-    uint8_t MQTT_State;
-
   private:
-    char _ssid[M2M_MAX_SSID_LEN];
-    char _password[M2M_MAX_SSID_LEN];
-
     void initTopic();
-    void request(String body_str);
+    void request(PubSubClient mqtt, String body_str);
 
 	String AE_ID;
-	String MOBIUS_MQTT_BROKER_IP;
-	uint16_t MOBIUS_MQTT_PORT;
-
-    char mqtt_id[11];
-
-    unsigned long mqtt_previousMillis;
-    unsigned long mqtt_interval; // count
-    unsigned long mqtt_led_interval; // ms
-    uint16_t mqtt_wait_count;
+    String BROKER_IP;
 
     resource_t ae[AE_COUNT];
     int ae_count;
@@ -113,8 +91,6 @@ class OneM2MClient : public WiFiClass
     topic_t _topic;
 
     unsigned long sequence;
-
-    PubSubClient mqtt;
 };
 
 #endif // ONEM2MCLIENT_H

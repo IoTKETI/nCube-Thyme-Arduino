@@ -37,6 +37,28 @@ const long wifi_interval = 30; // count
 const long wifi_led_interval = 100; // ms
 uint16_t wifi_wait_count = 0;
 
+unsigned long mqtt_previousMillis = 0;
+unsigned long mqtt_interval = 4; // count
+unsigned long mqtt_led_interval = 500; // ms
+uint16_t mqtt_wait_count = 0;
+
+// for MQTT
+#define _MQTT_INIT 1
+#define _MQTT_CONNECT 2
+#define _MQTT_CONNECTED 3
+#define _MQTT_RECONNECT 4
+#define _MQTT_READY 5
+#define _MQTT_IDLE 6
+
+WiFiClient wifiClient;
+PubSubClient mqtt(wifiClient);
+
+char mqtt_id[16];
+uint8_t MQTT_State = _MQTT_INIT;
+
+char in_message[MQTT_MAX_PACKET_SIZE];
+StaticJsonBuffer<MQTT_MAX_PACKET_SIZE*2> jsonBuffer;
+
 unsigned long req_previousMillis = 0;
 const long req_interval = 2000; // ms
 
@@ -47,12 +69,9 @@ uint8_t chk_count = 0;
 #define UPLOAD_UPLOADING 2
 #define UPLOAD_UPLOADED 3
 unsigned long uploading_previousMillis = 0;
-const long uploading_interval = 250; // ms
+const long uploading_interval = 2000; // ms
 uint8_t UPLOAD_State = UPLOAD_UPLOADING;
-
-// for MQTT
-WiFiClient wifiClient;
-PubSubClient mqtt;
+uint8_t upload_retry_count = 0;
 
 char req_id[10];
 String state = "create_ae";
@@ -61,7 +80,7 @@ uint8_t sequence = 0;
 String strRef[8];
 int strRef_length = 0;
 
-#define QUEUE_SIZE 8
+#define QUEUE_SIZE 12
 typedef struct _queue_t {
     uint8_t pop_idx;
     uint8_t push_idx;
@@ -81,12 +100,12 @@ const long generate_interval = 5000; // ms
 
 // Information of CSE as Mobius with MQTT
 const String FIRMWARE_VERSION = "1.0.0.0";
-const String AE_NAME = "base0";
-const String AE_ID = "S" + AE_NAME;
-const String MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
+String AE_NAME = "base0";
+String AE_ID = "S" + AE_NAME;
+const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
-OneM2MClient nCube(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT); // AE-ID
+OneM2MClient nCube;
 
 // add TAS(Thing Adaptation Layer) for Sensor
 #include "TasCO2.h"
@@ -110,17 +129,24 @@ void buildResource() {
 // function of Sensor as CO2 : get Sensor Data
 void tasCO2Sensor_upload_callback(String con) {
     if (state == "create_cin") {
-        rand_str(req_id, 8);
-        upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
+        char rqi[10];
+        rand_str(rqi, 8);
+        upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/co2";
         upload_q.con[upload_q.push_idx] = "\"" + tasCO2Sensor.curValue + "\"";
-        upload_q.rqi[upload_q.push_idx] = String(req_id);
+        upload_q.rqi[upload_q.push_idx] = String(rqi);
         upload_q.push_idx++;
         if(upload_q.push_idx >= QUEUE_SIZE) {
             upload_q.push_idx = 0;
         }
         if(upload_q.push_idx == upload_q.pop_idx) {
             upload_q.pop_idx++;
+            if(upload_q.pop_idx >= QUEUE_SIZE) {
+                upload_q.pop_idx = 0;
+            }
         }
+
+        Serial.println("pop : " + String(upload_q.pop_idx));
+        Serial.println("push : " + String(upload_q.push_idx));
     }
 }
 
@@ -147,7 +173,7 @@ void notiProcess() {
 
             String resp_body = "";
             resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
-            nCube.response(resp_body);
+            nCube.response(mqtt, resp_body);
         }
         else if(strRef[strRef_length-1] == "update") {
             if (noti_q.con[noti_q.pop_idx] == "active") {
@@ -155,7 +181,7 @@ void notiProcess() {
 
                 String resp_body = "";
                 resp_body += "{\"rsc\":\"2000\",\"to\":\"\",\"fr\":\"" + nCube.getAeid() + "\",\"pc\":\"\",\"rqi\":\"" + noti_q.rqi[noti_q.pop_idx] + "\"}";
-                nCube.response(resp_body);
+                nCube.response(mqtt, resp_body);
             }
         }
 
@@ -183,19 +209,29 @@ void setup() {
 
     delay(1000);
 
-    nCube.setCallback(resp_callback, noti_callback);
+    byte mac[6];
+    WiFi.macAddress(mac);
+    sprintf(mqtt_id, "nCube-%.2X%.2X", mac[1], mac[0]);
 
     delay(500);
 
-    buildResource();
-    //init OTA client
-    OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
-
+    // User Defined seup -------------------------------------------------------
     tasLed.init();
     tasCO2Sensor.init();
     tasCO2Sensor.setCallback(tasCO2Sensor_upload_callback);
     delay(500);
     tasLed.setLED("0");
+    //--------------------------------------------------------------------------
+
+    delay(500);
+    nCube.Init(MOBIUS_MQTT_BROKER_IP, AE_ID);
+    mqtt.setServer(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT);
+    mqtt.setCallback(mqtt_message_handler);
+    MQTT_State = _MQTT_INIT;
+
+    buildResource();
+    //init OTA client
+    OTAClient.begin(AE_NAME, FIRMWARE_VERSION);
 }
 
 void loop() {
@@ -212,10 +248,10 @@ void loop() {
 //------------------------------------------------------------------------------
 
 void nCube_loop() {
-    WiFi_chkconnect();
-    nCube.MQTT_chkconnect();
-
     chkState();
+    WiFi_chkconnect();
+    mqtt_chkconnect();
+
     publisher();
     otaProcess();
     uploadProcess();
@@ -269,7 +305,6 @@ void WiFi_chkconnect() {
             noti_q.push_idx = 0;
             upload_q.pop_idx = 0;
             upload_q.push_idx = 0;
-
         }
         else if(WIFI_State == WIFI_CONNECTED) {
             if (WiFi.status() == WL_CONNECTED) {
@@ -295,7 +330,7 @@ void WiFi_chkconnect() {
                 upload_q.pop_idx = 0;
                 upload_q.push_idx = 0;
             }
-            nCube.MQTT_init(AE_ID);
+            //nCube.MQTT_init(AE_ID);
         }
         else if(WIFI_State == WIFI_CONNECT) {
             unsigned long currentMillis = millis();
@@ -320,17 +355,6 @@ void WiFi_chkconnect() {
                 if (WiFi.status() == WL_CONNECTED) {
                     // you're connected now, so print out the status:
                     printWiFiStatus();
-
-                    uint8_t mac[6];
-                    WiFi.macAddress(mac);
-
-                    PubSubClient _mqtt(wifiClient);
-
-                    char ip[16];
-                    MOBIUS_MQTT_BROKER_IP.toCharArray(ip, 16);
-
-                    nCube.MQTT_init(AE_ID);
-                    nCube.MQTT_ready(_mqtt, ip, MOBIUS_MQTT_BROKER_PORT, mac);
 
                     digitalWrite(ledPin, LOW);
 
@@ -376,6 +400,8 @@ void WiFi_chkconnect() {
                     digitalWrite(ledPin, LOW);
 
                     WIFI_State = WIFI_CONNECTED;
+                    wifi_previousMillis = 0;
+                    wifi_wait_count = 0;
                 }
             }
         }
@@ -400,11 +426,59 @@ void printWiFiStatus() {
 }
 
 void otaProcess() {
-    if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
+    if(WIFI_State == WIFI_CONNECTED && MQTT_State == _MQTT_CONNECTED) {
         if (OTAClient.finished()) {
         }
         else {
             OTAClient.poll();
+        }
+    }
+}
+
+void publisher() {
+    unsigned long currentMillis = millis();
+    if (currentMillis - req_previousMillis >= req_interval) {
+        req_previousMillis = currentMillis;
+
+        if(WIFI_State == WIFI_CONNECTED && MQTT_State == _MQTT_CONNECTED) {
+            if (state == "create_ae") {
+                Serial.print(state + " - ");
+                rand_str(req_id, 8);
+                Serial.print(String(sequence));
+                Serial.print(" - ");
+                Serial.println(String(req_id));
+                nCube.createAE(mqtt, req_id, 0, "3.14");
+                digitalWrite(ledPin, HIGH);
+            }
+            else if (state == "create_cnt") {
+                Serial.print(state + " - ");
+                rand_str(req_id, 8);
+                Serial.print(String(sequence));
+                Serial.print(" - ");
+                Serial.println(String(req_id));
+                nCube.createCnt(mqtt, req_id, sequence);
+                digitalWrite(ledPin, HIGH);
+            }
+            else if (state == "delete_sub") {
+                Serial.print(state + " - ");
+                rand_str(req_id, 8);
+                Serial.print(String(sequence));
+                Serial.print(" - ");
+                Serial.println(String(req_id));
+                nCube.deleteSub(mqtt, req_id, sequence);
+                digitalWrite(ledPin, HIGH);
+            }
+            else if (state == "create_sub") {
+                Serial.print(state + " - ");
+                rand_str(req_id, 8);
+                Serial.print(String(sequence));
+                Serial.print(" - ");
+                Serial.println(String(req_id));
+                nCube.createSub(mqtt, req_id, sequence);
+                digitalWrite(ledPin, HIGH);
+            }
+            else if (state == "create_cin") {
+            }
         }
     }
 }
@@ -416,20 +490,25 @@ void chkState() {
 
         if(WIFI_State == WIFI_CONNECT) {
             Serial.println("WIFI_CONNECT");
+            MQTT_State = _MQTT_INIT;
         }
         else if(WIFI_State == WIFI_RECONNECT) {
             Serial.println("WIFI_RECONNECT");
+            MQTT_State = _MQTT_INIT;
+        }
+        else if(WIFI_State == WIFI_CONNECTED && MQTT_State == _MQTT_INIT) {
+            MQTT_State = _MQTT_CONNECT;
         }
 
-        if(nCube.MQTT_State == _MQTT_CONNECT) {
+        if(MQTT_State == _MQTT_CONNECT) {
             Serial.println("_MQTT_CONNECT");
         }
 
-        if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
+        if(WIFI_State == WIFI_CONNECTED && MQTT_State == _MQTT_CONNECTED) {
             chk_count++;
             if(chk_count > 10) {
                 chk_count = 0;
-                nCube.heartbeat();
+                nCube.heartbeat(mqtt);
             }
         }
     }
@@ -460,12 +539,113 @@ void Split(String sData, char cSeparator)
 	}
 }
 
-void noti_callback(String topic, JsonObject &root) {
+void mqtt_chkconnect() {
+    if(MQTT_State == _MQTT_CONNECT) {
+        unsigned long currentMillis = millis();
+        if (currentMillis - mqtt_previousMillis >= mqtt_led_interval) {
+            mqtt_previousMillis = currentMillis;
+            if(mqtt_wait_count++ >= (mqtt_interval)) {
+                mqtt_wait_count = 0;
+                Serial.println();
+        		Serial.print("Current MQTT state : ");
+        		Serial.println(mqtt.state());
+        		Serial.print("Attempting MQTT connection...");
+
+                if (mqtt.connect(mqtt_id)) {
+        			Serial.println("MQTT connected");
+
+                    char resp_topic[nCube.getRespTopic().length()+1];
+                    char noti_topic[nCube.getNotiTopic().length()+1];
+                    nCube.getRespTopic().toCharArray(resp_topic, nCube.getRespTopic().length()+1);
+                    nCube.getNotiTopic().toCharArray(noti_topic, nCube.getNotiTopic().length()+1);
+
+					mqtt.unsubscribe(resp_topic);
+					mqtt.unsubscribe(noti_topic);
+        			if (mqtt.subscribe(resp_topic)) {
+        				Serial.println(nCube.getRespTopic() + " Successfully subscribed");
+                        if (mqtt.subscribe(noti_topic)) {
+            				Serial.println(nCube.getNotiTopic() + " Successfully subscribed");
+                            MQTT_State = _MQTT_CONNECTED;
+							sequence = 0;
+            			}
+        			}
+        		}
+        		else {
+        			Serial.print("failed, rc=");
+        			Serial.print(mqtt.state());
+        			Serial.println(" try again in 2 seconds");
+                }
+            }
+            else {
+                if(mqtt_wait_count % 2) {
+                    digitalWrite(ledPin, HIGH);
+                }
+                else {
+                    digitalWrite(ledPin, LOW);
+                }
+            }
+        }
+    }
+    else if(MQTT_State == _MQTT_CONNECTED) {
+		if(mqtt.loop()) {
+			return;
+    	}
+
+        MQTT_State = _MQTT_INIT;
+    }
+}
+
+void mqtt_message_handler(char* topic_in, byte* payload, unsigned int length) {
+    String topic = String(topic_in);
+
+	Serial.print("Message arrived [");
+	Serial.print(topic);
+	Serial.print("] <---- ");
+	Serial.println(length);
+
+	for (unsigned int i = 0; i < length; i++) {
+		Serial.print((char)payload[i]);
+	}
+	Serial.println();
+
+	if (topic.substring(8,12) == "resp") {
+		memset((char*)in_message, '\0', length+1);
+		memcpy((char*)in_message, payload, length);
+		JsonObject& resp_root = jsonBuffer.parseObject(in_message);
+
+		if (!resp_root.success()) {
+			Serial.println(F("parseObject() failed"));
+			return;
+		}
+
+        resp_handler(topic, resp_root);
+
+		jsonBuffer.clear();
+	}
+	else if(topic.substring(8,11) == "req") {
+		memset((char*)in_message, '\0', length+1);
+		memcpy((char*)in_message, payload, length);
+		JsonObject& req_root = jsonBuffer.parseObject(in_message);
+
+		if (!req_root.success()) {
+			Serial.println(F("parseObject() failed"));
+			return;
+		}
+
+		noti_handler(topic, req_root);
+
+		jsonBuffer.clear();
+	}
+}
+
+void noti_handler(String topic, JsonObject &root) {
     if (state == "create_cin") {
         String sur = root["pc"]["m2m:sgn"]["sur"];
-        Serial.println(sur);
         if(sur.charAt(0) != '/') {
             sur = '/' + sur;
+            Serial.println(sur);
+        }
+        else {
             Serial.println(sur);
         }
 
@@ -483,19 +663,22 @@ void noti_callback(String topic, JsonObject &root) {
             }
             if(noti_q.push_idx == noti_q.pop_idx) {
                 noti_q.pop_idx++;
+                if(noti_q.pop_idx >= QUEUE_SIZE) {
+                    noti_q.pop_idx = 0;
+                }
             }
         }
     }
 }
 
-void resp_callback(String topic, JsonObject &root) {
+void resp_handler(String topic, JsonObject &root) {
     int response_code = root["rsc"];
     String request_id = String(req_id);
     String response_id = root["rqi"];
 
     Serial.println(response_code);
 
-    //if (request_id == response_id) {
+    if (request_id == response_id) {
         if (response_code == 2000 || response_code == 2001 || response_code == 2002 || response_code == 4105 || response_code == 4004) {
             if (state == "create_ae") {
                 sequence++;
@@ -525,83 +708,62 @@ void resp_callback(String topic, JsonObject &root) {
                     sequence = 0;
                 }
             }
-        }
-        digitalWrite(ledPin, LOW);
-        UPLOAD_State = UPLOAD_UPLOADED;
-    //}
-}
-
-void publisher() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - req_previousMillis >= req_interval) {
-        req_previousMillis = currentMillis;
-
-        if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
-            if (state == "create_ae") {
-                Serial.print(state + " - ");
-                rand_str(req_id, 8);
-                Serial.print(String(sequence));
-                Serial.print(" - ");
-                Serial.println(String(req_id));
-                nCube.createAE(req_id, 0, "3.14");
-                digitalWrite(ledPin, HIGH);
-            }
-            else if (state == "create_cnt") {
-                Serial.print(state + " - ");
-                rand_str(req_id, 8);
-                Serial.print(String(sequence));
-                Serial.print(" - ");
-                Serial.println(String(req_id));
-                nCube.createCnt(req_id, sequence);
-                digitalWrite(ledPin, HIGH);
-            }
-            else if (state == "delete_sub") {
-                Serial.print(state + " - ");
-                rand_str(req_id, 8);
-                Serial.print(String(sequence));
-                Serial.print(" - ");
-                Serial.println(String(req_id));
-                nCube.deleteSub(req_id, sequence);
-                digitalWrite(ledPin, HIGH);
-            }
-            else if (state == "create_sub") {
-                Serial.print(state + " - ");
-                rand_str(req_id, 8);
-                Serial.print(String(sequence));
-                Serial.print(" - ");
-                Serial.println(String(req_id));
-                nCube.createSub(req_id, sequence);
-                digitalWrite(ledPin, HIGH);
-            }
             else if (state == "create_cin") {
-                //Serial.print(state + " - ");
+                upload_retry_count = 0;
+                if(upload_q.pop_idx == upload_q.push_idx) {
+
+                }
+                else {
+                    upload_q.pop_idx++;
+                    if(upload_q.pop_idx >= QUEUE_SIZE) {
+                        upload_q.pop_idx = 0;
+                    }
+                }
             }
+            digitalWrite(ledPin, LOW);
+            UPLOAD_State = UPLOAD_UPLOADED;
         }
     }
 }
 
 void uploadProcess() {
-    if(WIFI_State == WIFI_CONNECTED && nCube.MQTT_State == _MQTT_CONNECTED) {
+    if(WIFI_State == WIFI_CONNECTED && MQTT_State == _MQTT_CONNECTED) {
         unsigned long currentMillis = millis();
         if (currentMillis - uploading_previousMillis >= uploading_interval) {
             uploading_previousMillis = currentMillis;
 
             if (state == "create_cin") {
+                if(UPLOAD_State == UPLOAD_UPLOADING) {
+                    Serial.println("upload timeout");
+                }
+
                 UPLOAD_State = UPLOAD_UPLOADED;
+                upload_retry_count++;
+                if(upload_retry_count > 2) {
+                    upload_retry_count = 0;
+                    if(upload_q.pop_idx == upload_q.push_idx) {
+
+                    }
+                    else {
+                        upload_q.pop_idx++;
+                        if(upload_q.pop_idx >= QUEUE_SIZE) {
+                            upload_q.pop_idx = 0;
+                        }
+                    }
+                }
             }
         }
 
         if((UPLOAD_State == UPLOAD_UPLOADED) && (upload_q.pop_idx != upload_q.push_idx)) {
-            nCube.createCin(upload_q.rqi[upload_q.pop_idx], upload_q.ref[upload_q.pop_idx], upload_q.con[upload_q.pop_idx]);
-            digitalWrite(ledPin, HIGH);
-
-            uploading_previousMillis = currentMillis;
+            uploading_previousMillis = millis();
             UPLOAD_State = UPLOAD_UPLOADING;
 
-            upload_q.pop_idx++;
-            if(upload_q.pop_idx >= QUEUE_SIZE) {
-                upload_q.pop_idx = 0;
-            }
+            upload_q.rqi[upload_q.pop_idx].toCharArray(req_id, 10);
+
+            Serial.println("pop : " + String(upload_q.pop_idx));
+            Serial.println("push : " + String(upload_q.push_idx));
+            nCube.createCin(mqtt, upload_q.rqi[upload_q.pop_idx], upload_q.ref[upload_q.pop_idx], upload_q.con[upload_q.pop_idx]);
+            digitalWrite(ledPin, HIGH);
         }
     }
 }

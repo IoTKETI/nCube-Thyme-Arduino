@@ -15,84 +15,15 @@ Released into the public domain.
 */
 
 #include "Arduino.h"
-
 #include "OneM2MClient.h"
 
-const int ledPin = 13; // LED pin for connectivity status indicator
-
-void (*_mqtt_resp_callback)(String topic, JsonObject& root);
-void (*_mqtt_noti_callback)(String topic, JsonObject& root);
-
-char in_message[MQTT_MAX_PACKET_SIZE];
 char out_message[MQTT_MAX_PACKET_SIZE];
 
-StaticJsonBuffer<MQTT_MAX_PACKET_SIZE*2> jsonBuffer;
-
-void mqttMessageHandler(char* topic_in, byte* payload, unsigned int length) {
-	String topic = String(topic_in);
-
-	Serial.print("Message arrived [");
-	Serial.print(topic);
-	Serial.print("] <---- ");
-	Serial.println(length);
-
-	for (unsigned int i = 0; i < length; i++) {
-		Serial.print((char)payload[i]);
-	}
-	Serial.println();
-
-	if (topic.substring(8,12) == "resp") {
-		memset((char*)in_message, '\0', length+1);
-		memcpy((char*)in_message, payload, length);
-		JsonObject& resp_root = jsonBuffer.parseObject(in_message);
-
-		if (!resp_root.success()) {
-			Serial.println(F("parseObject() failed"));
-			return;
-		}
-
-		if(_mqtt_resp_callback != NULL) {
-			_mqtt_resp_callback(topic, resp_root);
-		}
-
-		jsonBuffer.clear();
-	}
-	else if(topic.substring(8,11) == "req") {
-		memset((char*)in_message, '\0', length+1);
-		memcpy((char*)in_message, payload, length);
-		JsonObject& req_root = jsonBuffer.parseObject(in_message);
-
-		if (!req_root.success()) {
-			Serial.println(F("parseObject() failed"));
-			return;
-		}
-
-		if(_mqtt_noti_callback != NULL) {
-			_mqtt_noti_callback(topic, req_root);
-		}
-
-		jsonBuffer.clear();
-	}
-}
-
-OneM2MClient::OneM2MClient(String broker, uint16_t port)
+OneM2MClient::OneM2MClient()
 {
-	MOBIUS_MQTT_BROKER_IP = broker;
-	MOBIUS_MQTT_PORT = port;
-
-	_mqtt_resp_callback = NULL;
-	_mqtt_noti_callback = NULL;
-
-	mqtt_previousMillis = 0;
-    mqtt_interval = 10; // count
-    mqtt_led_interval = 500; // ms
-    mqtt_wait_count = 0;
-
 	ae_count = 0;
 	cnt_count = 0;
 	sub_count = 0;
-
-	MQTT_State = _MQTT_INIT;
 }
 
 uint8_t OneM2MClient::getAeCount() {
@@ -105,85 +36,12 @@ uint8_t OneM2MClient::getSubCount() {
 	return sub_count;
 }
 
-void OneM2MClient::MQTT_ready(PubSubClient _mqtt, char* ip, uint16_t port, uint8_t mac[6]) {
-	mqtt = _mqtt;
-
-	mqtt.setServer(ip, port);
-
-	sprintf(mqtt_id, "nCube-%.2X%.2X", mac[1], mac[0]);
-
-	Serial.println("mqtt.setServer - _MQTT_READY");
-
-	MQTT_State = _MQTT_CONNECT;
-	mqtt_previousMillis = 0;
-	mqtt_wait_count = 0;
-}
-
-void OneM2MClient::MQTT_init(String _aeid)
+void OneM2MClient::Init(String _brokerip, String _aeid)
 {
+	BROKER_IP = _brokerip;
 	AE_ID = _aeid;
 
 	initTopic();
-
-	MQTT_State = _MQTT_INIT;
-}
-
-void OneM2MClient::MQTT_chkconnect() {
-    if(MQTT_State == _MQTT_CONNECT) {
-        unsigned long currentMillis = millis();
-        if (currentMillis - mqtt_previousMillis >= mqtt_led_interval) {
-            mqtt_previousMillis = currentMillis;
-            if(mqtt_wait_count++ >= (mqtt_interval)) {
-                mqtt_wait_count = 0;
-                Serial.println();
-        		Serial.print("Current MQTT state : ");
-        		Serial.println(mqtt.state());
-        		Serial.print("Attempting MQTT connection...");
-
-                if (mqtt.connect(mqtt_id)) {
-        			Serial.println("MQTT connected");
-
-        			mqtt.setCallback(mqttMessageHandler);
-
-                    char resp_topic[_topic.resp.length()+1];
-                    char noti_topic[_topic.noti.length()+1];
-                    _topic.resp.toCharArray(resp_topic, _topic.resp.length()+1);
-                    _topic.noti.toCharArray(noti_topic, _topic.noti.length()+1);
-
-					mqtt.unsubscribe(resp_topic);
-					mqtt.unsubscribe(noti_topic);
-        			if (mqtt.subscribe(resp_topic)) {
-        				Serial.println(_topic.resp + " Successfully subscribed");
-                        if (mqtt.subscribe(noti_topic)) {
-            				Serial.println(_topic.noti + " Successfully subscribed");
-                            MQTT_State = _MQTT_CONNECTED;
-							sequence = 0;
-            			}
-        			}
-        		}
-        		else {
-        			Serial.print("failed, rc=");
-        			Serial.print(mqtt.state());
-        			Serial.println(" try again in 2 seconds");
-                }
-            }
-            else {
-                if(mqtt_wait_count % 2) {
-                    digitalWrite(ledPin, HIGH);
-                }
-                else {
-                    digitalWrite(ledPin, LOW);
-                }
-            }
-        }
-    }
-    else if(MQTT_State == _MQTT_CONNECTED) {
-		if(mqtt.loop()) {
-			return;
-    	}
-
-        MQTT_State = _MQTT_CONNECT;
-    }
 }
 
 void OneM2MClient::configResource(uint8_t ty, String to, String rn) {
@@ -220,7 +78,7 @@ String OneM2MClient::validSur(String sur) {
 	return "empty";
 }
 
-void OneM2MClient::createAE(String rqi, int index, String api)
+void OneM2MClient::createAE(PubSubClient mqtt, String rqi, int index, String api)
 {
 	String body_str =
 	"{"
@@ -238,10 +96,10 @@ void OneM2MClient::createAE(String rqi, int index, String api)
 	"}"
 	"}";
 
-	request(body_str);
+	request(mqtt, body_str);
 }
 
-void OneM2MClient::createCnt(String rqi, int index)
+void OneM2MClient::createCnt(PubSubClient mqtt, String rqi, int index)
 {
 	String body_str =
 	"{"
@@ -257,10 +115,10 @@ void OneM2MClient::createCnt(String rqi, int index)
 	"}"
 	"}";
 
-	request(body_str);
+	request(mqtt, body_str);
 }
 
-void OneM2MClient::deleteSub(String rqi, int index)
+void OneM2MClient::deleteSub(PubSubClient mqtt, String rqi, int index)
 {
 	String body_str =
 	"{"
@@ -272,10 +130,10 @@ void OneM2MClient::deleteSub(String rqi, int index)
 	"}"
 	"}";
 
-	request(body_str);
+	request(mqtt, body_str);
 }
 
-void OneM2MClient::createSub(String rqi, int index)
+void OneM2MClient::createSub(PubSubClient mqtt, String rqi, int index)
 {
 	String body_str =
 	"{"
@@ -290,16 +148,16 @@ void OneM2MClient::createSub(String rqi, int index)
 	"\"enc\":{"
 	"\"net\":[3]},"
 	"\"nu\":"
-	"[\"mqtt://" + String(MOBIUS_MQTT_BROKER_IP)  + ":1883/" + AE_ID + "?ct=json&rcn=9\"],"
+	"[\"mqtt://" + BROKER_IP + ":1883/" + AE_ID + "?ct=json&rcn=9\"],"
 	"\"nct\":\"2\""
 	"}"
 	"}"
 	"}";
 
-	request(body_str);
+	request(mqtt, body_str);
 }
 
-void OneM2MClient::createCin(String rqi, String to, String value)
+void OneM2MClient::createCin(PubSubClient mqtt, String rqi, String to, String value)
 {
 	String body_str =
 	"{"
@@ -315,10 +173,10 @@ void OneM2MClient::createCin(String rqi, String to, String value)
 	"}"
 	"}";
 
-	request(body_str);
+	request(mqtt, body_str);
 }
 
-void OneM2MClient::request(String body_str)
+void OneM2MClient::request(PubSubClient mqtt, String body_str)
 {
 	char req_topic[_topic.req.length()+1];
 	_topic.req.toCharArray(req_topic, _topic.req.length()+1);
@@ -340,7 +198,7 @@ void OneM2MClient::request(String body_str)
 	}
 }
 
-void OneM2MClient::response(String body_str)
+void OneM2MClient::response(PubSubClient mqtt, String body_str)
 {
 	char noti_resp_topic[_topic.noti_resp.length()+1];
 	_topic.noti_resp.toCharArray(noti_resp_topic, _topic.noti_resp.length()+1);
@@ -362,7 +220,7 @@ void OneM2MClient::response(String body_str)
 	}
 }
 
-void OneM2MClient::heartbeat() {
+void OneM2MClient::heartbeat(PubSubClient mqtt) {
 	String heartbeatTopic = "/nCube/heartbeat/" + AE_ID;
 	char heartbeat_topic[heartbeatTopic.length()+1];
 	heartbeatTopic.toCharArray(heartbeat_topic, heartbeatTopic.length()+1);
@@ -385,11 +243,6 @@ void OneM2MClient::heartbeat() {
 	}
 }
 
-void OneM2MClient::setCallback(void (*callback1)(String topic, JsonObject& root), void (*callback2)(String topic, JsonObject& root)) {
-	_mqtt_resp_callback = callback1;
-	_mqtt_noti_callback = callback2;
-}
-
 void OneM2MClient::initTopic() {
 	_topic.req        = "/oneM2M/req/" + AE_ID + "/Mobius/json";
 	_topic.resp       = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
@@ -400,4 +253,20 @@ void OneM2MClient::initTopic() {
 
 String OneM2MClient::getAeid() {
 	return AE_ID;
+}
+
+String OneM2MClient::getRespTopic() {
+	return _topic.resp;
+}
+
+String OneM2MClient::getReqTopic() {
+	return _topic.req;
+}
+
+String OneM2MClient::getNotiTopic() {
+	return _topic.noti;
+}
+
+String OneM2MClient::getNotiRespTopic() {
+	return _topic.noti_resp;
 }
