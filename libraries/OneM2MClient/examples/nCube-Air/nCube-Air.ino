@@ -102,7 +102,7 @@ const long generate_interval = 5000; // ms
 const String FIRMWARE_VERSION = "1.0.0.0";
 String AE_NAME = "air1";
 String AE_ID = "S" + AE_NAME;
-const char* MOBIUS_MQTT_BROKER_IP = "192.168.0.32";
+const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
 OneM2MClient nCube;
