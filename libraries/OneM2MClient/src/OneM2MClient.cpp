@@ -17,8 +17,6 @@ Released into the public domain.
 #include "Arduino.h"
 #include "OneM2MClient.h"
 
-char out_message[MQTT_MAX_PACKET_SIZE];
-
 OneM2MClient::OneM2MClient()
 {
 	ae_count = 0;
@@ -78,9 +76,9 @@ String OneM2MClient::validSur(String sur) {
 	return "empty";
 }
 
-void OneM2MClient::createAE(PubSubClient mqtt, String rqi, int index, String api)
+String OneM2MClient::createAE(PubSubClient mqtt, String rqi, int index, String api)
 {
-	String body_str =
+	body_str =
 	"{"
 	"\"op\":\"1\","
 	"\"to\":\"" + ae[index].to + "?rcn=0\","
@@ -96,12 +94,17 @@ void OneM2MClient::createAE(PubSubClient mqtt, String rqi, int index, String api
 	"}"
 	"}";
 
-	request(mqtt, body_str);
+	if(request(mqtt, body_str)) {
+		return body_str;
+	}
+	else {
+		return "0";
+	}
 }
 
-void OneM2MClient::createCnt(PubSubClient mqtt, String rqi, int index)
+String OneM2MClient::createCnt(PubSubClient mqtt, String rqi, int index)
 {
-	String body_str =
+	body_str =
 	"{"
 	"\"op\":\"1\","
 	"\"to\":\"" + cnt[index].to + "?rcn=0\","
@@ -115,12 +118,17 @@ void OneM2MClient::createCnt(PubSubClient mqtt, String rqi, int index)
 	"}"
 	"}";
 
-	request(mqtt, body_str);
+	if(request(mqtt, body_str)) {
+		return body_str;
+	}
+	else {
+		return "0";
+	}
 }
 
-void OneM2MClient::deleteSub(PubSubClient mqtt, String rqi, int index)
+String OneM2MClient::deleteSub(PubSubClient mqtt, String rqi, int index)
 {
-	String body_str =
+	body_str =
 	"{"
 	"\"op\":\"4\","
 	"\"to\":\"" + sub[index].to + "/" + sub[index].rn + "?rcn=0\","
@@ -130,12 +138,17 @@ void OneM2MClient::deleteSub(PubSubClient mqtt, String rqi, int index)
 	"}"
 	"}";
 
-	request(mqtt, body_str);
+	if(request(mqtt, body_str)) {
+		return body_str;
+	}
+	else {
+		return "0";
+	}
 }
 
-void OneM2MClient::createSub(PubSubClient mqtt, String rqi, int index)
+String OneM2MClient::createSub(PubSubClient mqtt, String rqi, int index)
 {
-	String body_str =
+	body_str =
 	"{"
 	"\"op\":\"1\","
 	"\"to\":\"" + sub[index].to + "?rcn=0\","
@@ -154,12 +167,17 @@ void OneM2MClient::createSub(PubSubClient mqtt, String rqi, int index)
 	"}"
 	"}";
 
-	request(mqtt, body_str);
+	if(request(mqtt, body_str)) {
+		return body_str;
+	}
+	else {
+		return "0";
+	}
 }
 
-void OneM2MClient::createCin(PubSubClient mqtt, String rqi, String to, String value)
+String OneM2MClient::createCin(PubSubClient mqtt, String rqi, String to, String value)
 {
-	String body_str =
+	body_str =
 	"{"
 	"\"op\":\"1\","
 	"\"to\":\"" + to +  "?rcn=0\","
@@ -173,100 +191,95 @@ void OneM2MClient::createCin(PubSubClient mqtt, String rqi, String to, String va
 	"}"
 	"}";
 
-	request(mqtt, body_str);
+	if(request(mqtt, body_str)) {
+		return body_str;
+	}
+	else {
+		return "0";
+	}
 }
 
-void OneM2MClient::request(PubSubClient mqtt, String body_str)
+bool OneM2MClient::request(PubSubClient mqtt, String body_str)
 {
-	char req_topic[_topic.req.length()+1];
-	_topic.req.toCharArray(req_topic, _topic.req.length()+1);
+	body_str.toCharArray(out_message, MQTT_MAX_PACKET_SIZE);
 
-	unsigned int length = body_str.length();
-
-	memset(out_message, '\0', MQTT_MAX_PACKET_SIZE);
-	body_str.toCharArray(out_message, length+1);
-
-	if (!mqtt.publish(req_topic, out_message)) {
-		Serial.println(F("REQUEST Failed"));
+	if (!mqtt.publish(req_topic, out_message, body_str.length())) {
+		return false;
 	}
 	else {
-		Serial.print("Request [");
-		Serial.print(_topic.req);
-		Serial.print("] ----> ");
-		Serial.println(length+1);
-		Serial.println(out_message);
+		return true;
 	}
 }
 
-void OneM2MClient::response(PubSubClient mqtt, String body_str)
+bool OneM2MClient::response(PubSubClient mqtt, String body_str)
 {
-	char noti_resp_topic[_topic.noti_resp.length()+1];
-	_topic.noti_resp.toCharArray(noti_resp_topic, _topic.noti_resp.length()+1);
+	body_str.toCharArray(out_message, MQTT_MAX_PACKET_SIZE);
 
-	unsigned int length = body_str.length();
-
-	memset(out_message, '\0', MQTT_MAX_PACKET_SIZE);
-	body_str.toCharArray(out_message, length+1);
-
-	if (!mqtt.publish(noti_resp_topic, out_message)) {
-		Serial.println(F("RESPONSE Failed"));
+	if (!mqtt.publish(noti_resp_topic, out_message, body_str.length())) {
+		return false;
 	}
 	else {
-		Serial.print("Response [");
-		Serial.print(_topic.noti_resp);
-		Serial.print("] ----> ");
-		Serial.println(length+1);
-		Serial.println(out_message);
+		return true;
 	}
 }
 
-void OneM2MClient::heartbeat(PubSubClient mqtt) {
-	String heartbeatTopic = "/nCube/heartbeat/" + AE_ID;
-	char heartbeat_topic[heartbeatTopic.length()+1];
-	heartbeatTopic.toCharArray(heartbeat_topic, heartbeatTopic.length()+1);
+String OneM2MClient::heartbeat(PubSubClient mqtt) {
+	body_str = AE_ID + ":" + String(sequence++);
+	body_str.toCharArray(out_message, MQTT_MAX_PACKET_SIZE);
 
-	String heartbeatMessage = String(sequence++);
-	char heartbeat_message[heartbeatMessage.length()+1];
-	heartbeatMessage.toCharArray(heartbeat_message, heartbeatMessage.length()+1);
-
-	unsigned int length = heartbeatMessage.length();
-
-	if (!mqtt.publish(heartbeat_topic, heartbeat_message)) {
-		Serial.println(F("Send heartbeat Failed"));
+	if (!mqtt.publish(heartbeat_topic, out_message, body_str.length())) {
+		return "Failed";
 	}
 	else {
-		Serial.print("Send heartbeat [");
-		Serial.print(heartbeatTopic);
-		Serial.print("] ----> ");
-		Serial.println(length+1);
-		Serial.println(heartbeatMessage);
+		return body_str;
 	}
+}
+
+void OneM2MClient::reset_heartbeat() {
+	sequence = 0;
 }
 
 void OneM2MClient::initTopic() {
-	_topic.req        = "/oneM2M/req/" + AE_ID + "/Mobius/json";
-	_topic.resp       = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
+	String topic = "/oneM2M/req/" + AE_ID + "/Mobius/json";
+	topic.toCharArray(req_topic, 48);
 
-	_topic.noti       = "/oneM2M/req/Mobius/" + AE_ID + "/json";
-	_topic.noti_resp  = "/oneM2M/resp/Mobius/" + AE_ID + "/json";
+	//topic = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
+	//topic.toCharArray(resp_topic, 48);
+
+	//topic = "/oneM2M/req/Mobius/" + AE_ID + "/json";
+	//topic.toCharArray(noti_topic, 48);
+
+	topic = "/oneM2M/resp/Mobius/" + AE_ID + "/json";
+	topic.toCharArray(noti_resp_topic,48);
+
+	topic = "/nCube/heartbeat";
+	topic.toCharArray(heartbeat_topic, 48);
 }
 
 String OneM2MClient::getAeid() {
 	return AE_ID;
 }
 
-String OneM2MClient::getRespTopic() {
-	return _topic.resp;
-}
+// String OneM2MClient::getRespTopic() {
+// 	return String(resp_topic);
+// }
 
 String OneM2MClient::getReqTopic() {
-	return _topic.req;
+	return String(req_topic);
 }
 
-String OneM2MClient::getNotiTopic() {
-	return _topic.noti;
-}
+// String OneM2MClient::getNotiTopic() {
+// 	return String(noti_topic);
+// }
 
 String OneM2MClient::getNotiRespTopic() {
-	return _topic.noti_resp;
+	return String(noti_resp_topic);
+}
+
+String OneM2MClient::getHeartbeatTopic() {
+	return String(heartbeat_topic);
+}
+
+unsigned long OneM2MClient::get_sequence() {
+	return sequence;
 }

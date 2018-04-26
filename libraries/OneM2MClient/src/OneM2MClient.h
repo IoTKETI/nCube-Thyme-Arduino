@@ -34,13 +34,6 @@ typedef struct _resource_t {
   int status;
 } resource_t;
 
-typedef struct _topic_t {
-  String req;
-  String resp;
-  String noti;
-  String noti_resp;
-} topic_t;
-
 #define AE_COUNT 1
 #define CNT_COUNT 10
 #define SUB_COUNT 5
@@ -49,25 +42,28 @@ class OneM2MClient : public WiFiClass
 {
   public:
     OneM2MClient();
-    void createAE(PubSubClient mqtt, String rqi, int index, String api);
-    void createCnt(PubSubClient mqtt, String rqi, int index);
-    void deleteSub(PubSubClient mqtt, String rqi, int index);
-    void createSub(PubSubClient mqtt, String rqi, int index);
-    void createCin(PubSubClient mqtt, String rqi, String to, String value);
+    String createAE(PubSubClient mqtt, String rqi, int index, String api);
+    String createCnt(PubSubClient mqtt, String rqi, int index);
+    String deleteSub(PubSubClient mqtt, String rqi, int index);
+    String createSub(PubSubClient mqtt, String rqi, int index);
+    String createCin(PubSubClient mqtt, String rqi, String to, String value);
 
-    void heartbeat(PubSubClient mqtt);
+    String heartbeat(PubSubClient mqtt);
+    void reset_heartbeat();
+    unsigned long get_sequence();
 
-    void response(PubSubClient mqtt, String body_str);
+    bool response(PubSubClient mqtt, String body_str);
 
     uint8_t getAeCount();
     uint8_t getCntCount();
     uint8_t getSubCount();
 
 	String getAeid();
-    String getRespTopic();
+    //String getRespTopic();
     String getReqTopic();
-    String getNotiTopic();
+    //String getNotiTopic();
     String getNotiRespTopic();
+    String getHeartbeatTopic();
 
     void Init(String _brokerip, String _aeid);
 
@@ -76,10 +72,18 @@ class OneM2MClient : public WiFiClass
 
   private:
     void initTopic();
-    void request(PubSubClient mqtt, String body_str);
+    bool request(PubSubClient mqtt, String body_str);
 
 	String AE_ID;
     String BROKER_IP;
+
+    String body_str;
+    char req_topic[48];
+    //char resp_topic[48];
+    //char noti_topic[48];
+    char noti_resp_topic[48];
+    char heartbeat_topic[48];
+    char out_message[MQTT_MAX_PACKET_SIZE];
 
     resource_t ae[AE_COUNT];
     int ae_count;
@@ -87,8 +91,6 @@ class OneM2MClient : public WiFiClass
     int cnt_count;
     resource_t sub[SUB_COUNT];
 	int sub_count;
-
-    topic_t _topic;
 
     unsigned long sequence;
 };
