@@ -34,8 +34,9 @@ uint8_t OneM2MClient::getSubCount() {
 	return sub_count;
 }
 
-void OneM2MClient::Init(String _brokerip, String _aeid)
+void OneM2MClient::Init(String _cseid, String _brokerip, String _aeid)
 {
+	CSE_ID = _cseid;
 	BROKER_IP = _brokerip;
 	AE_ID = _aeid;
 
@@ -240,7 +241,7 @@ void OneM2MClient::reset_heartbeat() {
 }
 
 void OneM2MClient::initTopic() {
-	String topic = "/oneM2M/req/" + AE_ID + "/Mobius/json";
+	String topic = "/oneM2M/req/" + AE_ID + CSE_ID + "/json";
 	topic.toCharArray(req_topic, 48);
 
 	//topic = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
@@ -249,7 +250,7 @@ void OneM2MClient::initTopic() {
 	//topic = "/oneM2M/req/Mobius/" + AE_ID + "/json";
 	//topic.toCharArray(noti_topic, 48);
 
-	topic = "/oneM2M/resp/Mobius/" + AE_ID + "/json";
+	topic = "/oneM2M/resp/" + CSE_ID + "/" + AE_ID + "/json";
 	topic.toCharArray(noti_resp_topic,48);
 
 	topic = "/nCube/heartbeat";

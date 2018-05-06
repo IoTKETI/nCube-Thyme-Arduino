@@ -116,6 +116,7 @@ const long generate_interval = 5000; // ms
 const String FIRMWARE_VERSION = "1.0.0.0";
 String AE_NAME = "air1";
 String AE_ID = "S" + AE_NAME;
+const String CSE_ID = "/Mobius2";
 const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
@@ -234,13 +235,13 @@ void setup() {
 
     delay(500);
 
-    String topic = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
+    String topic = "/oneM2M/resp/" + AE_ID + CSE_ID + "/json";
     topic.toCharArray(resp_topic, 64);
 
-	topic = "/oneM2M/req/Mobius/" + AE_ID + "/json";
+	topic = "/oneM2M/req" + CSE_ID + "/" + AE_ID + "/json";
     topic.toCharArray(noti_topic, 64);
 
-    nCube.Init(MOBIUS_MQTT_BROKER_IP, AE_ID);
+    nCube.Init(CSE_ID, MOBIUS_MQTT_BROKER_IP, AE_ID);
     mqtt.setServer(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT);
     mqtt.setCallback(mqtt_message_handler);
     MQTT_State = _MQTT_INIT;
