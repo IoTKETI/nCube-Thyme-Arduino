@@ -250,7 +250,7 @@ void OneM2MClient::initTopic() {
 	//topic = "/oneM2M/req/Mobius/" + AE_ID + "/json";
 	//topic.toCharArray(noti_topic, 48);
 
-	topic = "/oneM2M/resp/" + CSE_ID + "/" + AE_ID + "/json";
+	topic = "/oneM2M/resp" + CSE_ID + "/" + AE_ID + "/json";
 	topic.toCharArray(noti_resp_topic,48);
 
 	topic = "/nCube/heartbeat";
