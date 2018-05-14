@@ -25,8 +25,6 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
-const String CSE_ID = "Mobius";
-
 typedef struct _resource_t {
   String ty;
   String to;
@@ -65,7 +63,7 @@ class OneM2MClient : public WiFiClass
     String getNotiRespTopic();
     String getHeartbeatTopic();
 
-    void Init(String _brokerip, String _aeid);
+    void Init(String _cseid, String _brokerip, String _aeid);
 
     void configResource(uint8_t ty, String to, String rn);
     String validSur(String sur);
@@ -75,6 +73,7 @@ class OneM2MClient : public WiFiClass
     bool request(PubSubClient mqtt, String body_str);
 
 	String AE_ID;
+    String CSE_ID;
     String BROKER_IP;
 
     String body_str;

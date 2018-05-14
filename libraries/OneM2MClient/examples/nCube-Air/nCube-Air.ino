@@ -109,13 +109,20 @@ unsigned long system_watchdog = 0;
 // -----------------------------------------------------------------------------
 // User Define
 // Period of Sensor Data, can make more
-unsigned long generate_previousMillis = 0;
-const long generate_interval = 5000; // ms
+const unsigned long base_generate_interval = 10 * 1000;
+unsigned long temp_generate_previousMillis = 0;
+unsigned long temp_generate_interval = base_generate_interval;
+unsigned long tvoc_generate_previousMillis = 0;
+unsigned long tvoc_generate_interval = base_generate_interval;
+unsigned long co2_generate_previousMillis = 0;
+unsigned long co2_generate_interval = base_generate_interval;
 
 // Information of CSE as Mobius with MQTT
 const String FIRMWARE_VERSION = "1.0.0.0";
 String AE_NAME = "air1";
 String AE_ID = "S" + AE_NAME;
+const String CSE_ID = "/Mobius2";
+const String CB_NAME = "Mobius";
 const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
@@ -123,49 +130,141 @@ OneM2MClient nCube;
 
 // add TAS(Thing Adaptation Layer) for Sensor
 #include "TasLED.h"
-
 TasLED tasLed;
+
+#include "TasCCS811.h"
+TasCCS811 TasCCSSensor;
+
 
 // build tree of resource of oneM2M
 void buildResource() {
-    nCube.configResource(2, "/Mobius", AE_NAME);                    // AE resource
+    nCube.configResource(2, "/"+CB_NAME, AE_NAME);                    // AE resource
 
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "temp");            // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "tvoc");            // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "update");          // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "co2");             // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "led");             // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "temp");            // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "tvoc");            // Container resource
 
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
+    nCube.configResource(23, "/"+CB_NAME+"/"+AE_NAME+"/update", "sub");  // Subscription resource
+    nCube.configResource(23, "/"+CB_NAME+"/"+AE_NAME+"/led", "sub");     // Subscription resource
 }
 
 // Period of generating sensor data
-void genProcess() {
+void co2GenProcess() {
     unsigned long currentMillis = millis();
-    if (currentMillis - generate_previousMillis >= generate_interval) {
-        generate_previousMillis = currentMillis;
+    if (currentMillis - co2_generate_previousMillis >= co2_generate_interval) {
+        co2_generate_previousMillis = currentMillis;
+        co2_generate_interval = base_generate_interval + (random(1000));
         if (state == "create_cin") {
-            int con = (double) rand() / RAND_MAX * 7;
+            String cnt = "co2";
+            String con = "\"?\"";
+            if(TasCCSSensor.available()) {
+                if(!TasCCSSensor.readData()) {
+                    con = String(TasCCSSensor.geteCO2()/10);
+                    con = "\"" + con + "\"";
 
-            char rqi[10];
-            rand_str(rqi, 8);
-            upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/led";
-            upload_q.con[upload_q.push_idx] = String(con);
-            upload_q.rqi[upload_q.push_idx] = String(rqi);
-            upload_q.push_idx++;
-            if(upload_q.push_idx >= QUEUE_SIZE) {
-                upload_q.push_idx = 0;
-            }
-            if(upload_q.push_idx == upload_q.pop_idx) {
-                upload_q.pop_idx++;
-                if(upload_q.pop_idx >= QUEUE_SIZE) {
-                    upload_q.pop_idx = 0;
+                    char rqi[10];
+                    rand_str(rqi, 8);
+                    upload_q.ref[upload_q.push_idx] = "/"+CB_NAME+"/"+AE_NAME+"/"+cnt;
+                    upload_q.con[upload_q.push_idx] = con;
+                    upload_q.rqi[upload_q.push_idx] = String(rqi);
+                    upload_q.push_idx++;
+                    if(upload_q.push_idx >= QUEUE_SIZE) {
+                        upload_q.push_idx = 0;
+                    }
+                    if(upload_q.push_idx == upload_q.pop_idx) {
+                        upload_q.pop_idx++;
+                        if(upload_q.pop_idx >= QUEUE_SIZE) {
+                            upload_q.pop_idx = 0;
+                        }
+                    }
+
+                    Serial.println("pop : " + String(upload_q.pop_idx));
+                    Serial.println("push : " + String(upload_q.push_idx));
+                }
+                else {
+                    Serial.println("CCS811 co2 ERROR!");
                 }
             }
+        }
+    }
+}
 
-            Serial.println("pop : " + String(upload_q.pop_idx));
-            Serial.println("push : " + String(upload_q.push_idx));
+void tempGenProcess() {
+    unsigned long currentMillis = millis();
+    if (currentMillis - temp_generate_previousMillis >= temp_generate_interval) {
+        temp_generate_previousMillis = currentMillis;
+        temp_generate_interval = base_generate_interval + (random(1000));
+        if (state == "create_cin") {
+            String cnt = "temp";
+            String con = "\"?\"";
+
+            if(TasCCSSensor.available()) {
+                float temp = TasCCSSensor.calculateTemperature();
+                con = String(temp);
+                con = "\"" + con + "\"";
+
+                char rqi[10];
+                rand_str(rqi, 8);
+                upload_q.ref[upload_q.push_idx] = "/"+CB_NAME+"/"+AE_NAME+"/"+cnt;
+                upload_q.con[upload_q.push_idx] = con;
+                upload_q.rqi[upload_q.push_idx] = String(rqi);
+                upload_q.push_idx++;
+                if(upload_q.push_idx >= QUEUE_SIZE) {
+                    upload_q.push_idx = 0;
+                }
+                if(upload_q.push_idx == upload_q.pop_idx) {
+                    upload_q.pop_idx++;
+                    if(upload_q.pop_idx >= QUEUE_SIZE) {
+                        upload_q.pop_idx = 0;
+                    }
+                }
+
+                Serial.println("pop : " + String(upload_q.pop_idx));
+                Serial.println("push : " + String(upload_q.push_idx));
+            }
+        }
+    }
+}
+
+void tvocGenProcess() {
+    unsigned long currentMillis = millis();
+    if (currentMillis - tvoc_generate_previousMillis >= tvoc_generate_interval) {
+        tvoc_generate_previousMillis = currentMillis;
+        tvoc_generate_interval = base_generate_interval + (random(1000));
+        if (state == "create_cin") {
+            String cnt = "tvoc";
+            String con = "\"?\"";
+
+            if(TasCCSSensor.available()) {
+                if(!TasCCSSensor.readData()) {
+                    con = String(TasCCSSensor.getTVOC()/10);
+                    con = "\"" + con + "\"";
+
+                    char rqi[10];
+                    rand_str(rqi, 8);
+                    upload_q.ref[upload_q.push_idx] = "/"+CB_NAME+"/"+AE_NAME+"/"+cnt;
+                    upload_q.con[upload_q.push_idx] = con;
+                    upload_q.rqi[upload_q.push_idx] = String(rqi);
+                    upload_q.push_idx++;
+                    if(upload_q.push_idx >= QUEUE_SIZE) {
+                        upload_q.push_idx = 0;
+                    }
+                    if(upload_q.push_idx == upload_q.pop_idx) {
+                        upload_q.pop_idx++;
+                        if(upload_q.pop_idx >= QUEUE_SIZE) {
+                            upload_q.pop_idx = 0;
+                        }
+                    }
+
+                    Serial.println("pop : " + String(upload_q.pop_idx));
+                    Serial.println("push : " + String(upload_q.push_idx));
+                }
+                else {
+                    Serial.println("CCS811 tvoc ERROR!");
+                }
+            }
         }
     }
 }
@@ -228,19 +327,37 @@ void setup() {
 
     // User Defined setup -------------------------------------------------------
     tasLed.init();
+
+    if(!TasCCSSensor.begin()) {
+        Serial.println("Failed to start CCS811 sensor! Please check your wiring.");
+        while(1) {
+            delay(100);
+            tasLed.setLED(String(random(1, 8)));
+        }
+    }
+
+    //calibrate temperature sensor
+    while(!TasCCSSensor.available());
+    float temp = TasCCSSensor.calculateTemperature();
+    TasCCSSensor.setTempOffset(temp - 25.0);
+
+    co2_generate_interval = base_generate_interval + (random(10)*1000);
+    tvoc_generate_interval = base_generate_interval + (random(10)*1000);
+    temp_generate_interval = base_generate_interval + (random(10)*1000);
+
     delay(500);
     tasLed.setLED("0");
     //--------------------------------------------------------------------------
 
     delay(500);
 
-    String topic = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
+    String topic = "/oneM2M/resp/" + AE_ID + CSE_ID + "/json";
     topic.toCharArray(resp_topic, 64);
 
-	topic = "/oneM2M/req/Mobius/" + AE_ID + "/json";
+	topic = "/oneM2M/req" + CSE_ID + "/" + AE_ID + "/json";
     topic.toCharArray(noti_topic, 64);
 
-    nCube.Init(MOBIUS_MQTT_BROKER_IP, AE_ID);
+    nCube.Init(CSE_ID, MOBIUS_MQTT_BROKER_IP, AE_ID);
     mqtt.setServer(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT);
     mqtt.setCallback(mqtt_message_handler);
     MQTT_State = _MQTT_INIT;
@@ -259,7 +376,9 @@ void loop() {
 
     // user defined loop
     notiProcess();
-    genProcess();
+    co2GenProcess();
+    tempGenProcess();
+    tvocGenProcess();
 }
 
 //------------------------------------------------------------------------------

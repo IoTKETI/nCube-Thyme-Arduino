@@ -116,6 +116,8 @@ const long generate_interval = 5000; // ms
 const String FIRMWARE_VERSION = "1.0.0.0";
 String AE_NAME = "base0";
 String AE_ID = "S" + AE_NAME;
+const String CSE_ID = "/Mobius2";
+const String CB_NAME = "Mobius";
 const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
@@ -130,14 +132,14 @@ TasCO2 tasCO2Sensor;
 
 // build tree of resource of oneM2M
 void buildResource() {
-    nCube.configResource(2, "/Mobius", AE_NAME);                    // AE resource
+    nCube.configResource(2, "/"+CB_NAME, AE_NAME);                    // AE resource
 
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "update");          // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "co2");             // Container resource
-    nCube.configResource(3, "/Mobius/"+AE_NAME, "led");             // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "update");          // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "co2");             // Container resource
+    nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "led");             // Container resource
 
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/update", "sub");  // Subscription resource
-    nCube.configResource(23, "/Mobius/"+AE_NAME+"/led", "sub");     // Subscription resource
+    nCube.configResource(23, "/"+CB_NAME+"/"+AE_NAME+"/update", "sub");  // Subscription resource
+    nCube.configResource(23, "/"+CB_NAME+"/"+AE_NAME+"/led", "sub");     // Subscription resource
 }
 
 // function of Sensor as CO2 : get Sensor Data
@@ -145,7 +147,7 @@ void tasCO2Sensor_upload_callback(String con) {
     if (state == "create_cin") {
         char rqi[10];
         rand_str(rqi, 8);
-        upload_q.ref[upload_q.push_idx] = "/Mobius/"+AE_NAME+"/co2";
+        upload_q.ref[upload_q.push_idx] = "/"+CB_NAME+"/"+AE_NAME+"/co2";
         upload_q.con[upload_q.push_idx] = "\"" + tasCO2Sensor.curValue + "\"";
         upload_q.rqi[upload_q.push_idx] = String(rqi);
         upload_q.push_idx++;
@@ -244,13 +246,13 @@ void setup() {
 
     delay(500);
 
-    String topic = "/oneM2M/resp/" + AE_ID + "/Mobius/json";
+    String topic = "/oneM2M/resp/" + AE_ID + CSE_ID + "/json";
     topic.toCharArray(resp_topic, 64);
 
-	topic = "/oneM2M/req/Mobius/" + AE_ID + "/json";
+	topic = "/oneM2M/req" + CSE_ID + "/" + AE_ID + "/json";
     topic.toCharArray(noti_topic, 64);
 
-    nCube.Init(MOBIUS_MQTT_BROKER_IP, AE_ID);
+    nCube.Init(CSE_ID, MOBIUS_MQTT_BROKER_IP, AE_ID);
     mqtt.setServer(MOBIUS_MQTT_BROKER_IP, MOBIUS_MQTT_BROKER_PORT);
     mqtt.setCallback(mqtt_message_handler);
     MQTT_State = _MQTT_INIT;
