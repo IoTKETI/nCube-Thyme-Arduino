@@ -86,7 +86,9 @@ class TasDryer
     void before_emergency();
     void emergency();
 
-    void loop(uint32_t tick);
+    uint8_t get_wifi_select();
+
+    void loop();
 
     void print_debug_lcd();
 
@@ -124,13 +126,10 @@ class TasDryer
     uint8_t _turnError;
     uint8_t _errorCode;
 
-    uint8_t _microPower;
     uint8_t _microIdx;
     uint8_t _microMode;
     uint8_t _microTick;
     uint8_t _microStatus;
-
-    uint8_t _microCtrl;
 
     uint32_t _curTick;
     uint32_t _preOverloadTick;
@@ -186,13 +185,12 @@ class TasDryer
     bool get_power_supply(uint8_t num);
     bool chk_micro_cooler();
     void set_cooler_timeout(uint32_t interval);
+    void request_stirrer_current();
     void get_stirrer_current();
     void set_stirrer_stop();
     void set_stirrer_forward();
     void set_stirrer_backward();
     void set_stirrer_high_forward();
-    void set_output_door(uint8_t command);
-    bool chk_discharge_door();
 
     void set_timeout(uint32_t interval);
     void on_buzzer(uint32_t interval);
@@ -203,6 +201,7 @@ class TasDryer
     void set_stirrer(uint8_t ctrl);
     void off_all_power_supply();
     void off_all_cooler();
+    void on_all_cooler();
     bool off_micro_cooler();
     void set_micro();
     void set_micro_before();
@@ -218,6 +217,20 @@ class TasDryer
     void lcd_discharge_log(uint8_t cases);
     void lcd_end_log();
     void lcd_emergency_log();
+    void lcd_input2door_log();
+    void lcd_init2input_log();
+    void lcd_output_door_log();
+    void lcd_input_door_log();
+    void lcd_low_load_log();
+    void lcd_input2input_log();
+    void lcd_input2stirrer_log();
+    void lcd_door2input_log();
+    void lcd_overload_log();
+    void lcd_door2door_log();
+    void lcd_stirrer2door_log();
+    void lcd_stirrer2error_log();
+    void lcd_stirrer_overload_log();
+    void lcd_stirrer2micro_log();
 };
 
 #endif // TASDRYER_H
