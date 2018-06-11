@@ -28,23 +28,24 @@
 #define STATE_MICRO     0x20
 #define STATE_DISCHARGE 0x40
 #define STATE_END       0x80
+#define STATE_DEBUG     0x11
 
-#define EVENT_DRYER_INIT                0x0001
-#define EVENT_DRYER_ERROR               0x0002
-#define EVENT_DRYER_OUTPUT_DOOR_OPEN    0x0004
-#define EVENT_DRYER_OUTPUT_DOOR_CLOSE   0x0008
-#define EVENT_DRYER_INPUT_DOOR_OPEN     0x0010
-#define EVENT_DRYER_INPUT_DOOR_CLOSE    0x0020
-#define EVENT_DRYER_STIRRER_CURRENT     0x0040
-#define EVENT_DRYER_DIS_BTN_DOWN        0x0080
-#define EVENT_DRYER_DIS_BTN_UP          0x0100
-#define EVENT_DRYER_STIRRER_TICK        0x0200
-#define EVENT_DRYER_DIS_DOOR_OPEN       0x0400
-#define EVENT_DRYER_DIS_DOOR_CLOSE      0x0800
-#define EVENT_DRYER_EMERGENCY_BTN_UP    0x1000
-#define EVENT_DRYER_EMERGENCY_BTN_DOWN  0x2000
-#define EVENT_DRYER_START_BTN_UP        0x4000
-#define EVENT_DRYER_START_BTN_DOWN      0x8000
+#define EVENT_DRYER_INIT                    0x0001
+#define EVENT_DRYER_ERROR                   0x0002
+#define EVENT_DRYER_OUTPUT_DOOR_OPEN        0x0004
+#define EVENT_DRYER_OUTPUT_DOOR_CLOSE       0x0008
+#define EVENT_DRYER_INPUT_DOOR_OPEN         0x0010
+#define EVENT_DRYER_INPUT_DOOR_CLOSE        0x0020
+#define EVENT_DRYER_STIRRER_CURRENT         0x0040
+#define EVENT_DRYER_DIS_BTN_DOWN            0x0080
+#define EVENT_LOADCELL_BTN_UP_DOWN_PRESSED  0x0100
+#define EVENT_DRYER_STIRRER_TICK            0x0200
+#define EVENT_LOADCELL_BTN_UP_PRESSED       0x0400
+#define EVENT_LOADCELL_BTN_UP_CLICK         0x0800
+#define EVENT_LOADCELL_BTN_DOWN_PRESSED     0x1000
+#define EVENT_LOADCELL_BTN_DOWN_CLICK       0x2000
+#define EVENT_DRYER_START_BTN_UP            0x4000
+#define EVENT_DRYER_START_BTN_DOWN          0x8000
 
 
 #define STATE_INPUT     0x04
@@ -68,6 +69,8 @@ class TasDryer
 
     String getDryerStatus();
 
+    void debug();
+    void before_debug();
     void init();
     void before_error(uint8_t code);
     void error();
@@ -90,7 +93,7 @@ class TasDryer
 
     void loop();
 
-    void print_debug_lcd();
+    void print_info_lcd();
 
   private:
     float_t _dryRate;  // 건조도
@@ -113,15 +116,24 @@ class TasDryer
 
     uint32_t _startBtnDownCount;
     uint8_t _startBtnDownFlag;
-    uint32_t _emerBtnDownCount;
-    uint8_t _emerBtnDownFlag;
-    uint32_t _disBtnDownCount;
-    uint8_t _disBtnDownFlag;
+
+    uint32_t _loadUpCount;
+    uint8_t _loadUpFlag;
+
+    uint32_t _loadDownCount;
+    uint8_t _loadDownFlag;
 
     uint32_t _inDoorOpenCount;
     uint8_t _inDoorFlag;
     uint32_t _outDoorOpenCount;
     uint8_t _outDoorFlag;
+
+    uint32_t _debugSelCount;
+    uint8_t _debugSelFlag;
+    uint8_t _debugSelStatus;
+
+    uint32_t _loadcell_calibration_lcd_previousMillis;
+    uint32_t _loadcell_calibration_lcd_interval;
 
     uint8_t _turnError;
     uint8_t _errorCode;
@@ -170,8 +182,7 @@ class TasDryer
     uint8_t lcd_status;
     uint8_t output_door_status;
 
-    void updateShiftRegister();
-
+    uint8_t get_debug_select();
     float_t get_loadcell();
     float_t get_dry_rate();
     bool get_input_door();
@@ -191,6 +202,8 @@ class TasDryer
     void set_stirrer_forward();
     void set_stirrer_backward();
     void set_stirrer_high_forward();
+
+    void get_loadcell_button();
 
     void set_timeout(uint32_t interval);
     void on_buzzer(uint32_t interval);
@@ -219,6 +232,8 @@ class TasDryer
     void lcd_emergency_log();
     void lcd_input2door_log();
     void lcd_init2input_log();
+    void lcd_init2debug_log();
+    void lcd_debug2input_log();
     void lcd_output_door_log();
     void lcd_input_door_log();
     void lcd_low_load_log();

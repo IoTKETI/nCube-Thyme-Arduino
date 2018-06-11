@@ -26,8 +26,16 @@
 
 #include <MuxShield.h>
 
+#include <FlashStorage.h>
+
 //Initialize the Mux Shield
 MuxShield muxShield;
+
+typedef struct _DryerInfo_t {
+    float_t calibration_factor;
+} DryerInfo_t;
+
+FlashStorage(my_flash_store, DryerInfo_t);
 
 #define DEBUG_PRINT         0
 
@@ -88,6 +96,8 @@ MuxShield muxShield;
 #define DISCHARGE       13
 #define INIT            14
 #define OPEN_INPUT_DOOR    15
+#define DEBUG    16
+
 
 #define DOOR_OPEN       1
 #define DOOR_CLOSE      2
@@ -111,9 +121,9 @@ MuxShield muxShield;
 #define TIME_BUZZER     60 // sec
 
 
-float_t calibration_factor = 3274.0; //This value is obtained using the SparkFun_HX711_Calibration sketch // get_loadcell
+//float_t calibration_factor = 3274.0; //This value is obtained using the SparkFun_HX711_Calibration sketch // get_loadcell
 HX711 scale(LOADCELL_DOUT_PIN, LOADCELL_CLK_PIN);
-uint8_t scale_count = 4;
+uint8_t scale_count = 8;
 float_t scale_avg = 0;
 float_t temperature_avg = 0;
 
@@ -142,8 +152,17 @@ TasDryer::TasDryer() {
 #define COOLER_PIN 12
 #define DEODORIZE_PIN 13
 
+DryerInfo_t dryerInfo;
+
 void TasDryer::begin() {
     Serial1.begin(9600);
+
+    dryerInfo = my_flash_store.read();
+
+    if(dryerInfo.calibration_factor == 0) {
+        dryerInfo.calibration_factor = -1540.0;
+        my_flash_store.write(dryerInfo);
+    }
 
     muxShield.setMode(1,ANALOG_IN);  //set I/O 1 as analog input
     muxShield.setMode(2,DIGITAL_OUT);        //set I/O 2 as digital output
@@ -220,18 +239,20 @@ void TasDryer::begin() {
     _startBtnDownCount = 0;
     _startBtnDownFlag = 0;
 
-    _emerBtnDownCount = 0;
-    _emerBtnDownFlag = 0;
-
-    _disBtnDownCount = 0;
-    _disBtnDownFlag = 0;
-
     _inDoorOpenCount = 0;
     _inDoorFlag = 0;
 
     _outDoorOpenCount = 0;
     _outDoorFlag = 0;
 
+    _loadUpCount = 0;
+    _loadUpFlag = 0;
+
+    _loadDownCount = 0;
+    _loadDownFlag = 0;
+
+    _loadcell_calibration_lcd_previousMillis = 0;
+    _loadcell_calibration_lcd_interval = 1 * 1000;
 
     _preStirrerCurrent = 1;
     _stirrerCurrent = 0;
@@ -239,6 +260,10 @@ void TasDryer::begin() {
     _microStatus = GOOD;
 
     _dryerEvent = 0;
+
+    _debugSelCount = 0;
+    _debugSelFlag = 0;
+    _debugSelStatus = 0;
 
     // DEODORIZE PIN 설정
 /*    pinMode(DEODORIZE_PIN, OUTPUT);
@@ -272,30 +297,17 @@ void TasDryer::begin() {
   // Serial.println(zero_factor);
 
     // loadcell 초기화
-   scale.set_scale(calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
-   //scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
+   scale.set_scale(dryerInfo.calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
+   scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
     #if DEBUG_PRINT
     Serial.print("SCALE_INIT");
     #endif
-
-    // BUTTON 초기화
-    // pinMode(START_BTN_PIN, INPUT_PULLUP);
-    // pinMode(EMERGENCY_BTN_PIN, INPUT_PULLUP);
-
-    // DOOR 센싱 초기화
-    // pinMode(INPUT_DOOR_PIN, INPUT_PULLUP);
-    // pinMode(DISCHARGE_BTN_PIN, INPUT_PULLUP);
-    // pinMode(OUTPUT_DOOR_PIN, INPUT_PULLUP);
-
-    // lcd.begin(20, 4);
-    //
-    // lcd.clear();
 
     _dryerState = STATE_INIT;
 }
 
 uint8_t TasDryer::get_wifi_select() {
-    int analog1 = muxShield.analogReadMS(1,WIFI_SELECT_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, WIFI_SELECT_PIN);  //IO3, pin 12
 
     if(analog1 > 512) {
         return 1;
@@ -304,12 +316,49 @@ uint8_t TasDryer::get_wifi_select() {
         return 0;
     }
 }
+
+uint8_t TasDryer::get_debug_select() {
+    uint8_t curStatus = 0;
+    int analog1 = muxShield.analogReadMS(1, DEBUG_SELECT_BTN_PIN);  //IO3, pin 12
+    if(analog1 > 512) {
+        curStatus = 1;
+    }
+    else {
+        curStatus = 0;
+    }
+
+    if (curStatus == LOW && _debugSelFlag == UP) {
+        _debugSelCount = 0;
+        _debugSelFlag = DOWN;
+    }
+    else if (curStatus == LOW && _debugSelFlag == DOWN) {
+        _debugSelCount++;
+        if (_debugSelCount >= 256) {
+            _debugSelCount = 256;
+            _debugSelStatus = 0;
+        }
+    }
+    else if (curStatus == HIGH && _debugSelFlag == DOWN) {
+        _debugSelCount = 0;
+        _debugSelFlag = UP;
+    }
+    else if (curStatus == HIGH && _debugSelFlag == UP) {
+        _debugSelCount++;
+        if (_debugSelCount >= 256) {
+            _debugSelCount = 256;
+            _debugSelStatus = 1;
+        }
+    }
+
+    return _debugSelStatus;
+}
+
 /**
 * @brief Dryer 현재 상태 LCD에 표시
 * @param 없음
 * @return 없음
 */
-void TasDryer::print_debug_lcd() {
+void TasDryer::print_info_lcd() {
     if(_preDryerState != _dryerState) {
         lcd.setCursor(0,1);
         lcd.print("   ");
@@ -441,65 +490,71 @@ uint8_t input_door_status = OPEN;
 uint8_t output_door_status = OPEN;
 
 void TasDryer::loop() {
-    unsigned long currentMillis = millis();
-    if (currentMillis - dryer_previousMillis >= dryer_interval) {
-        dryer_previousMillis = currentMillis;
+    get_debug_select();
 
-        dryer_tick++;
-
-        if(dryer_tick%2 == 0) {
-            chk_pt100();
-        }
-
-        if(dryer_tick%10 == 0) {
-            _dryerEvent |= EVENT_DRYER_STIRRER_TICK;
-       }
-
-       chk_loadcell();
-       print_debug_lcd();
-
-        _curTick = dryer_tick;
+    if(_dryerState == STATE_DEBUG) {
+        get_loadcell_button();
+        debug();
     }
     else {
-        //chk_discharge_door();
-        chk_buzzer();
-        get_start_button();
-        input_door_status = get_input_door();
-        output_door_status = get_output_door();
-        get_stirrer_current();
+        unsigned long currentMillis = millis();
+        if (currentMillis - dryer_previousMillis >= dryer_interval) {
+            dryer_previousMillis = currentMillis;
 
-        if(_dryerState == STATE_INIT) {
-            init();
-        }
-        else if(_dryerState == STATE_ERROR) {
-            error();
-        }
-        else if(_dryerState == STATE_INPUT) {
-            input();
-        }
-        else if(_dryerState == STATE_DOOR) {
-            door();
-        }
-        else if(_dryerState == STATE_STIRRER) {
-            stirrer();
-        }
-        else if(_dryerState == STATE_MICRO) {
-            micro();
-        }
-        else if(_dryerState == STATE_DISCHARGE) {
-            discharge();
-        }
-        else if(_dryerState == STATE_END) {
-            end();
-        }
-        else if(_dryerState == STATE_EMERGENCY) {
-            emergency();
+            dryer_tick++;
+
+            if(dryer_tick%2 == 0) {
+                chk_pt100();
+            }
+
+            if(dryer_tick%10 == 0) {
+                _dryerEvent |= EVENT_DRYER_STIRRER_TICK;
+            }
+
+            chk_loadcell();
+            print_info_lcd();
+
+            _curTick = dryer_tick;
         }
         else {
-            _dryerState = _preDryerState;
+            //chk_discharge_door();
+            chk_buzzer();
+            get_start_button();
+            input_door_status = get_input_door();
+            output_door_status = get_output_door();
+            get_stirrer_current();
+
+            if(_dryerState == STATE_INIT) {
+                init();
+            }
+            else if(_dryerState == STATE_ERROR) {
+                error();
+            }
+            else if(_dryerState == STATE_INPUT) {
+                input();
+            }
+            else if(_dryerState == STATE_DOOR) {
+                door();
+            }
+            else if(_dryerState == STATE_STIRRER) {
+                stirrer();
+            }
+            else if(_dryerState == STATE_MICRO) {
+                micro();
+            }
+            else if(_dryerState == STATE_DISCHARGE) {
+                discharge();
+            }
+            else if(_dryerState == STATE_END) {
+                end();
+            }
+            else if(_dryerState == STATE_EMERGENCY) {
+                emergency();
+            }
+            else {
+                _dryerState = _preDryerState;
+            }
         }
-
-
     }
 }
 
@@ -534,31 +589,139 @@ void TasDryer::init() {
         before_error(STATE_INIT);
     }
     else {
-        if(input_door_status == CLOSE && output_door_status == CLOSE) {
-            lcd_init2input_log();
-            lcd_status = INIT;
+        if(_debugSelStatus == 1) {
+            lcd.clear();
+            lcd_init2debug_log();
+            lcd_status = DEBUG;
 
-            before_input();
+            before_debug();
+            return;
         }
         else {
-            if(input_door_status == OPEN) {
-                if(lcd_status != OPEN_INPUT_DOOR) {
-                    lcd_input_door_log();
-                    lcd_status = OPEN_INPUT_DOOR;
-                }
+            if(input_door_status == CLOSE && output_door_status == CLOSE) {
+                lcd_init2input_log();
+                lcd_status = INIT;
+
+                before_input();
+                return;
             }
-            else if(output_door_status == OPEN) {
-                if(lcd_status != OPEN_OUTPUT_DOOR) {
-                    lcd_output_door_log();
-                    lcd_status = OPEN_OUTPUT_DOOR;
+            else {
+                if(input_door_status == OPEN) {
+                    if(lcd_status != OPEN_INPUT_DOOR) {
+                        lcd_input_door_log();
+                        lcd_status = OPEN_INPUT_DOOR;
+                    }
+                }
+                else if(output_door_status == OPEN) {
+                    if(lcd_status != OPEN_OUTPUT_DOOR) {
+                        lcd_output_door_log();
+                        lcd_status = OPEN_OUTPUT_DOOR;
+                    }
                 }
             }
         }
     }
 }
 
+void TasDryer::before_debug() {
+    _dryerEvent = 0;
+    stirrer_status = TURN;
+    set_stirrer(STOP);
+    off_all_cooler();
+    off_all_power_supply();
 
+    _preW0 = 0.0;
+    _w0 += _w2;
+    _targetW = _w0 * _dryRate;
 
+    _dryerState = STATE_DEBUG;
+
+    lcd.setCursor(10,1);
+    lcd.print(dryerInfo.calibration_factor);
+    lcd.setCursor(0,1);
+    lcd.print(get_loadcell());
+}
+
+float_t cal_gap = 10.0;
+void TasDryer::debug() {
+    if(_debugSelStatus == 0) {
+        if(lcd_status != INPUT) {
+            lcd_debug2input_log();
+            lcd_status = INPUT;
+        }
+        off_buzzer();
+        before_input();
+        return;
+    }
+    else {
+        unsigned long currentMillis = millis();
+        if (currentMillis - _loadcell_calibration_lcd_previousMillis >= _loadcell_calibration_lcd_interval) {
+            _loadcell_calibration_lcd_previousMillis = currentMillis;
+
+            lcd.setCursor(10,1);
+            lcd.print(dryerInfo.calibration_factor);
+            lcd.setCursor(0,1);
+            scale.set_scale(dryerInfo.calibration_factor);
+            lcd.print(get_loadcell());
+        }
+        else {
+            if(_dryerEvent & EVENT_LOADCELL_BTN_UP_CLICK) {
+                _dryerEvent &= ~EVENT_LOADCELL_BTN_UP_CLICK;
+                cal_gap = 10.0;
+                dryerInfo.calibration_factor += 1.0;
+
+                lcd.setCursor(0,1);
+                lcd.print("                    ");
+                scale.set_scale(dryerInfo.calibration_factor);
+                lcd.print(get_loadcell());
+                lcd.setCursor(10,1);
+                lcd.print(dryerInfo.calibration_factor);
+            }
+            else if(_dryerEvent & EVENT_LOADCELL_BTN_UP_PRESSED) {
+                _dryerEvent &= ~EVENT_LOADCELL_BTN_UP_PRESSED;
+                dryerInfo.calibration_factor += cal_gap;
+                cal_gap += 5;
+
+                lcd.setCursor(0,1);
+                lcd.print("                    ");
+                scale.set_scale(dryerInfo.calibration_factor);
+                lcd.print(get_loadcell());
+                lcd.setCursor(10,1);
+                lcd.print(dryerInfo.calibration_factor);            }
+            else if(_dryerEvent & EVENT_LOADCELL_BTN_DOWN_CLICK) {
+                _dryerEvent &= ~EVENT_LOADCELL_BTN_DOWN_CLICK;
+                cal_gap = 10.0;
+                dryerInfo.calibration_factor -= 1.0;
+
+                lcd.setCursor(0,1);
+                lcd.print("                    ");
+                scale.set_scale(dryerInfo.calibration_factor);
+                lcd.print(get_loadcell());
+                lcd.setCursor(10,1);
+                lcd.print(dryerInfo.calibration_factor);            }
+            else if(_dryerEvent & EVENT_LOADCELL_BTN_DOWN_PRESSED) {
+                _dryerEvent &= ~EVENT_LOADCELL_BTN_DOWN_PRESSED;
+                dryerInfo.calibration_factor -= cal_gap;
+                cal_gap += 5;
+
+                lcd.setCursor(0,1);
+                lcd.print("                    ");
+                scale.set_scale(dryerInfo.calibration_factor);
+                lcd.print(get_loadcell());
+                lcd.setCursor(10,1);
+                lcd.print(dryerInfo.calibration_factor);            }
+            else if(_dryerEvent & EVENT_LOADCELL_BTN_UP_DOWN_PRESSED) {
+                _dryerEvent &= ~EVENT_LOADCELL_BTN_UP_DOWN_PRESSED;
+
+                scale.set_scale(dryerInfo.calibration_factor);
+
+                my_flash_store.write(dryerInfo);
+                lcd.setCursor(0,1);
+                lcd.print("                    ");
+            }
+        }
+    }
+}
 
 /**
 * @brief INPUT 단계로 진입하기 전 작업 구현
@@ -569,6 +732,8 @@ void TasDryer::before_input() {
     _dryerEvent = 0;
     stirrer_status = TURN;
     set_stirrer(STOP);
+    off_all_cooler();
+    off_all_power_supply();
 
     _preW0 = 0.0;
     _w0 += _w2;
@@ -583,47 +748,57 @@ void TasDryer::before_input() {
 * @return 없음
 */
 void TasDryer::input() {
-    if(input_door_status == CLOSE && output_door_status == CLOSE) {
-        if(lcd_status == OPEN_OUTPUT_DOOR) {
-            lcd_input2input_log();
-            lcd_status = CLOSE_OUTPUT_DOOR;
-        }
+    if(_debugSelStatus == 1) {
+        lcd.clear();
+        lcd_init2debug_log();
+        lcd_status = DEBUG;
 
-        else if(_dryerEvent & EVENT_DRYER_START_BTN_DOWN) {
-            _dryerEvent &= ~EVENT_DRYER_START_BTN_DOWN;
-
-            if(_w0 >= 10.0) {
-                if(lcd_status != STIRRER) {
-    				lcd_input2stirrer_log();
-    				lcd_status = STIRRER;
-
-                    stirrer_status = STOP;
-                    set_stirrer(TURN);
-    			}
-                before_stirrer();
-                return;
+        before_debug();
+        return;
+    }
+    else {
+        if(input_door_status == CLOSE && output_door_status == CLOSE) {
+            if(lcd_status == OPEN_OUTPUT_DOOR) {
+                lcd_input2input_log();
+                lcd_status = CLOSE_OUTPUT_DOOR;
             }
-            else {
-                if(lcd_status != LOW_LOAD) {
-                    lcd_low_load_log();
-                    lcd_status = LOW_LOAD;
+
+            else if(_dryerEvent & EVENT_DRYER_START_BTN_DOWN) {
+                _dryerEvent &= ~EVENT_DRYER_START_BTN_DOWN;
+
+                if(_w0 >= 10.0) {
+                    if(lcd_status != STIRRER) {
+        				lcd_input2stirrer_log();
+        				lcd_status = STIRRER;
+
+                        stirrer_status = STOP;
+                        set_stirrer(TURN);
+        			}
+                    before_stirrer();
+                    return;
+                }
+                else {
+                    if(lcd_status != LOW_LOAD) {
+                        lcd_low_load_log();
+                        lcd_status = LOW_LOAD;
+                    }
                 }
             }
         }
-    }
-    else {
-        if(input_door_status == OPEN) {
-            if(lcd_status != INPUT_DOOR_OPEN) {
-                lcd_input2door_log();
-                lcd_status = INPUT_DOOR_OPEN;
+        else {
+            if(input_door_status == OPEN) {
+                if(lcd_status != INPUT_DOOR_OPEN) {
+                    lcd_input2door_log();
+                    lcd_status = INPUT_DOOR_OPEN;
+                }
+                before_door();
+                return;
             }
-            before_door();
-            return;
-        }
-        else if(output_door_status == OPEN) {
-            if(lcd_status != OPEN_OUTPUT_DOOR) {
-                lcd_output_door_log();
-                lcd_status = OPEN_OUTPUT_DOOR;
+            else if(output_door_status == OPEN) {
+                if(lcd_status != OPEN_OUTPUT_DOOR) {
+                    lcd_output_door_log();
+                    lcd_status = OPEN_OUTPUT_DOOR;
+                }
             }
         }
     }
@@ -959,19 +1134,7 @@ void TasDryer::before_discharge() {
 * @return 없음
 */
 void TasDryer::discharge() {
-    if(_dryerEvent & EVENT_DRYER_EMERGENCY_BTN_DOWN) {
-        _dryerEvent &= ~EVENT_DRYER_EMERGENCY_BTN_DOWN;
-
-        lcd.setCursor(0,0);
-        lcd.print("                    ");
-        lcd.setCursor(0,0);
-        lcd.print("EMERGENCY <-- MICRO");
-        lcd_status = EMERGENCY;
-        before_emergency();
-        return;
-    }
-
-    else if(_dryerEvent & EVENT_DRYER_OUTPUT_DOOR_CLOSE) {
+     if(_dryerEvent & EVENT_DRYER_OUTPUT_DOOR_CLOSE) {
         _dryerEvent &= ~EVENT_DRYER_OUTPUT_DOOR_CLOSE;
 
         if(lcd_status != CLOSE_OUTPUT_DOOR) {
@@ -1036,18 +1199,6 @@ void TasDryer::before_end() {
 * @return 없음
 */
 void TasDryer::end() {
-    if(_dryerEvent & EVENT_DRYER_EMERGENCY_BTN_DOWN) {
-        _dryerEvent &= ~EVENT_DRYER_EMERGENCY_BTN_DOWN;
-
-        lcd.setCursor(0,0);
-        lcd.print("                    ");
-        lcd.setCursor(0,0);
-        lcd.print("EMERGENCY <-- END");
-        lcd_status = EMERGENCY;
-        before_emergency();
-        return;
-    }
-
     if (_curTick - _preTick >= _interval) {
         _preTick = _curTick;
 
@@ -1113,17 +1264,6 @@ void TasDryer::before_error(uint8_t code) {
 * @return 없음
 */
 void TasDryer::error() {
-    if(_dryerEvent & EVENT_DRYER_EMERGENCY_BTN_DOWN) {
-        _dryerEvent &= ~EVENT_DRYER_EMERGENCY_BTN_DOWN;
-
-        lcd.setCursor(0,0);
-        lcd.print("                    ");
-        lcd.setCursor(0,0);
-        lcd.print("EMERGENCY <-- ERROR");
-        lcd_status = EMERGENCY;
-        before_emergency();
-        return;
-    }
 }
 
 /**
@@ -1146,23 +1286,6 @@ void TasDryer::before_emergency() {
 * @return 없음
 */
 void TasDryer::emergency() {
-    if(_dryerEvent & EVENT_DRYER_EMERGENCY_BTN_UP) {
-        _dryerEvent &= ~EVENT_DRYER_EMERGENCY_BTN_UP;
-
-        lcd.setCursor(0,0);
-        lcd.print("                    ");
-        lcd.setCursor(0,0);
-        lcd.print("INPUT <-- EMERGENCY");
-        lcd_status = EMERGENCY;
-
-        _thresholdW  = 100.0;
-        _w0 = _w1;
-        _w2 = 0.0;
-
-        off_deodorize();
-        before_input();
-        return;
-    }
 }
 
 
@@ -1674,20 +1797,18 @@ void TasDryer::chk_loadcell() {
 float_t TasDryer::get_loadcell() {
     float_t weight = 3.14;
 
-    weight = (scale.get_units(4)) * 0.453592; //scale.get_units() returns a float
+    weight = (scale.get_units()) * 0.453592; //scale.get_units() returns a float
 
-//    weight -= 84.5; // calibration
-//    weight *= 1.8; // calibration
-//    weight -= 18.4; // calibration
-    weight -= 1319.9;
+    //weight -= 1319.9;
 
     //if(weight <= 0.0) {
     //   weight = 0.0;
     //}
 
-    scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
+    //scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
+    //return round(scale_avg*10)/10.0;
 
-    return round(scale_avg*10)/10.0;
+    return weight;
 }
 
 /**
@@ -1846,6 +1967,80 @@ bool TasDryer::get_start_button() {
     return status;
 }
 
+void TasDryer::get_loadcell_button() {
+    uint8_t curStatus1 = 1;
+    uint8_t curStatus2 = 1;
+    int analog1 = muxShield.analogReadMS(1, LOADCELL_UP_BTN_PIN);  //IO3, pin 12
+    int analog2 = muxShield.analogReadMS(1, LOADCELL_DOWN_BTN_PIN);  //IO3, pin 12
+
+    if(analog1 > 512) {
+        curStatus1 = 1;
+    }
+    else {
+        curStatus1 = 0;
+    }
+
+    if(analog2 > 512) {
+        curStatus2 = 1;
+    }
+    else {
+        curStatus2 = 0;
+    }
+
+    if (curStatus1 == LOW && _loadUpFlag == DOWN && curStatus2 == LOW && _loadDownFlag == DOWN) {
+        _loadUpCount++;
+        _loadDownCount++;
+        if ((_loadUpCount+_loadDownCount) >= 2048) {
+            _loadUpCount = 0;
+            _loadDownCount = 0;
+            _dryerEvent |= EVENT_LOADCELL_BTN_UP_DOWN_PRESSED;
+        }
+    }
+    else {
+        if (curStatus1 == LOW && _loadUpFlag == UP) {
+            _loadUpCount = 0;
+            _loadUpFlag = DOWN;
+        }
+        else if (curStatus1 == LOW && _loadUpFlag == DOWN && _loadDownFlag == UP) {
+            _loadUpCount++;
+            if (_loadUpCount >= 512) {
+                _loadUpCount = 512;
+                _dryerEvent |= EVENT_LOADCELL_BTN_UP_PRESSED;
+            }
+        }
+        else if (curStatus1 == HIGH && _loadUpFlag == DOWN && _loadDownFlag == UP) {
+            _loadUpCount = 0;
+            _loadUpFlag = UP;
+            _dryerEvent |= EVENT_LOADCELL_BTN_UP_CLICK;
+        }
+        else if (curStatus1 == HIGH) {
+            _loadUpCount = 0;
+            _loadUpFlag = UP;
+        }
+
+        if (curStatus2 == LOW && _loadDownFlag == UP) {
+            _loadDownCount = 0;
+            _loadDownFlag = DOWN;
+        }
+        else if (curStatus2 == LOW && _loadDownFlag == DOWN && _loadUpFlag == UP) {
+            _loadDownCount++;
+            if (_loadDownCount >= 512) {
+                _loadDownCount = 512;
+                _dryerEvent |= EVENT_LOADCELL_BTN_DOWN_PRESSED;
+            }
+        }
+        else if (curStatus2 == HIGH && _loadDownFlag == DOWN && _loadUpFlag == UP) {
+            _loadDownCount = 0;
+            _loadDownFlag = UP;
+            _dryerEvent |= EVENT_LOADCELL_BTN_DOWN_CLICK;
+        }
+        else if (curStatus2 == HIGH) {
+            _loadDownCount = 0;
+            _loadDownFlag = UP;
+
+        }
+    }
+}
 /**
 * @brief 교반기 상태 확인하는 함수
 * @param 없음
@@ -2219,11 +2414,25 @@ void TasDryer::lcd_init2input_log() {
     lcd.print("INPUT <-- INIT");
 }
 
+void TasDryer::lcd_init2debug_log() {
+    lcd.setCursor(0,0);
+    lcd.print("                    ");
+    lcd.setCursor(0,0);
+    lcd.print("DEBUG <-- INIT");
+}
+
 void TasDryer::lcd_door2input_log() {
     lcd.setCursor(0,0);
     lcd.print("                    ");
     lcd.setCursor(0,0);
     lcd.print("INPUT <-- DOOR");
+}
+
+void TasDryer::lcd_debug2input_log() {
+    lcd.setCursor(0,0);
+    lcd.print("                    ");
+    lcd.setCursor(0,0);
+    lcd.print("INPUT <-- DEBUG");
 }
 
 void TasDryer::lcd_door2door_log() {
