@@ -43,14 +43,14 @@ MuxShield::MuxShield(int S0, int S1, int S2, int S3, int OUTMD,int IOS1, int IOS
 
 MuxShield::MuxShield()
 {
-    _S0 = 2;
-    _S1 = 4;
-    _S2 = 6;
-    _S3 = 7;
-    _OUTMD = 8;
-    _IO1 = A0;
-    _IO2 = A1;
-    _IO3 = A2;
+    // _S0 = 2;
+    // _S1 = 4;
+    // _S2 = 6;
+    // _S3 = 7;
+    // _OUTMD = 8;
+    // _IO1 = A0;
+    // _IO2 = A1;
+    // _IO3 = A2;
 
     _S0 = 9;
     _S1 = 10;
@@ -109,21 +109,21 @@ void MuxShield::setMode(int mux, int mode)
             switch (mode) {
                 case DIGITAL_IN:
                     pinMode(_IO2,INPUT);
-                    digitalWrite(_IOS2,LOW);
+                    //digitalWrite(_IOS2,LOW);
 					_IO2IsOutput = 0;
                     break;
                 case DIGITAL_IN_PULLUP:
                     pinMode(_IO2,INPUT_PULLUP);
-                    digitalWrite(_IOS2,LOW);
+                    //digitalWrite(_IOS2,LOW);
 					_IO2IsOutput = 0;
                     break;
                 case DIGITAL_OUT:
                     pinMode(_IO2,OUTPUT);
-                    digitalWrite(_IOS2,HIGH);
+                    //digitalWrite(_IOS2,HIGH);
 					_IO2IsOutput = 1;
                     break;
                 case ANALOG_IN:
-                    digitalWrite(_IOS2,LOW);
+                    //digitalWrite(_IOS2,LOW);
 					_IO2IsOutput = 0;
                     break;
                 default:
@@ -134,21 +134,21 @@ void MuxShield::setMode(int mux, int mode)
             switch (mode) {
                 case DIGITAL_IN:
                     pinMode(_IO3,INPUT);
-                    digitalWrite(_IOS3,LOW);
+                    //digitalWrite(_IOS3,LOW);
 					_IO3IsOutput = 0;
                     break;
                 case DIGITAL_IN_PULLUP:
                     pinMode(_IO3,INPUT_PULLUP);
-                    digitalWrite(_IOS3,LOW);
+                    //digitalWrite(_IOS3,LOW);
 					_IO3IsOutput = 0;
                     break;
                 case DIGITAL_OUT:
                     pinMode(_IO3,OUTPUT);
-                    digitalWrite(_IOS3,HIGH);
+                    //digitalWrite(_IOS3,HIGH);
 					_IO3IsOutput = 1;
                     break;
                 case ANALOG_IN:
-                    digitalWrite(_IOS3,LOW);
+                    //digitalWrite(_IOS3,LOW);
 					_IO3IsOutput = 0;
                     break;
                 default:
@@ -213,29 +213,20 @@ int MuxShield::digitalReadMS(int mux, int chan)
 {
     digitalWrite(_OUTMD,LOW);   //Set outmode off (i.e. set as input mode)
     int val;
+
+    digitalWrite(_S0, (chan&1));
+    digitalWrite(_S1, (chan&3)>>1);
+    digitalWrite(_S2, (chan&7)>>2);
+    digitalWrite(_S3, (chan&15)>>3);
+
     switch (mux) {
         case 1:
-            digitalWrite(_S0, (chan&1));
-            digitalWrite(_S1, (chan&3)>>1);
-            digitalWrite(_S2, (chan&7)>>2);
-            digitalWrite(_S3, (chan&15)>>3);
-
             val = digitalRead(_IO1);
             break;
         case 2:
-            digitalWrite(_S0, (chan&1));
-            digitalWrite(_S1, (chan&3)>>1);
-            digitalWrite(_S2, (chan&7)>>2);
-            digitalWrite(_S3, (chan&15)>>3);
-
             val = digitalRead(_IO2);
             break;
         case 3:
-            digitalWrite(_S0, (chan&1));
-            digitalWrite(_S1, (chan&3)>>1);
-            digitalWrite(_S2, (chan&7)>>2);
-            digitalWrite(_S3, (chan&15)>>3);
-
             val = digitalRead(_IO3);
             break;
         default:

@@ -37,7 +37,7 @@
 #define EVENT_DRYER_INPUT_DOOR_OPEN         0x0010
 #define EVENT_DRYER_INPUT_DOOR_CLOSE        0x0020
 #define EVENT_DRYER_STIRRER_CURRENT         0x0040
-#define EVENT_DRYER_DIS_BTN_DOWN            0x0080
+#define EVENT_STATUS_BTN_CLICK              0x0080
 #define EVENT_LOADCELL_BTN_UP_DOWN_PRESSED  0x0100
 #define EVENT_DRYER_STIRRER_TICK            0x0200
 #define EVENT_LOADCELL_BTN_UP_PRESSED       0x0400
@@ -120,6 +120,9 @@ class TasDryer
     uint32_t _loadUpCount;
     uint8_t _loadUpFlag;
 
+    uint32_t _statusCount;
+    uint8_t _statusFlag;
+
     uint32_t _loadDownCount;
     uint8_t _loadDownFlag;
 
@@ -161,6 +164,7 @@ class TasDryer
     uint32_t _disInterval;
     uint8_t _disFlag;
 
+    uint16_t _debugStatus;
 
     uint32_t _stirrerCurrent;
 
@@ -182,6 +186,11 @@ class TasDryer
     uint8_t lcd_status;
     uint8_t output_door_status;
 
+    float_t _microACCurrtntValue1;
+    float_t _microACCurrtntValue2;
+    float_t _microACCurrtntValue3;
+    float_t _microACCurrtntValue4;
+
     uint8_t get_debug_select();
     float_t get_loadcell();
     float_t get_dry_rate();
@@ -192,7 +201,7 @@ class TasDryer
     uint8_t get_emergency_button();
     bool get_stirrer();
     int get_pt100();
-    float_t get_current_micro();
+    void get_current_micro();
     bool get_power_supply(uint8_t num);
     bool chk_micro_cooler();
     void set_cooler_timeout(uint32_t interval);
@@ -204,7 +213,7 @@ class TasDryer
     void set_stirrer_high_forward();
 
     void get_loadcell_button();
-
+    void get_status_button();
     void set_timeout(uint32_t interval);
     void on_buzzer(uint32_t interval);
     void chk_buzzer();
@@ -246,6 +255,16 @@ class TasDryer
     void lcd_stirrer2error_log();
     void lcd_stirrer_overload_log();
     void lcd_stirrer2micro_log();
+    void lcd_micro_mode_log();
+    void lcd_micro2door_log();
+    void lcd_micro2error_log();
+    void lcd_micro_overload_log();
+    void lcd_dis_open_door_log();
+    void lcd_dis_close_door_log();
+    void lcd_dis2end_log();
+    void lcd_end_close_out_door_log();
+    void lcd_end_close_in_door_log();
+    void lcd_end2input_log();
 };
 
 #endif // TASDRYER_H
