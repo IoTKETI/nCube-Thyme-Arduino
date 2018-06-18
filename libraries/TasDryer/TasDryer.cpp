@@ -162,7 +162,7 @@ void TasDryer::begin() {
     dryerInfo = my_flash_store.read();
 
     if(dryerInfo.calibration_factor == 0) {
-        dryerInfo.calibration_factor = -1540.0;
+        dryerInfo.calibration_factor = -3470.0;
         my_flash_store.write(dryerInfo);
     }
 
@@ -302,8 +302,8 @@ void TasDryer::begin() {
   // Serial.println(zero_factor);
 
     // loadcell 초기화
-   scale.set_scale(dryerInfo.calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
-   scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
+    scale.set_scale(dryerInfo.calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
+    scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
     #if DEBUG_PRINT
     Serial.print("SCALE_INIT");
     #endif
@@ -340,8 +340,8 @@ uint8_t TasDryer::get_debug_select() {
     }
     else if (curStatus == LOW && _debugSelFlag == DOWN) {
         _debugSelCount++;
-        if (_debugSelCount >= 256) {
-            _debugSelCount = 256;
+        if (_debugSelCount >= 16) {
+            _debugSelCount = 16;
             _debugSelStatus = 0;
         }
     }
@@ -351,8 +351,8 @@ uint8_t TasDryer::get_debug_select() {
     }
     else if (curStatus == HIGH && _debugSelFlag == UP) {
         _debugSelCount++;
-        if (_debugSelCount >= 256) {
-            _debugSelCount = 256;
+        if (_debugSelCount >= 16) {
+            _debugSelCount = 16;
             _debugSelStatus = 1;
         }
     }
@@ -514,6 +514,24 @@ void TasDryer::loop() {
         get_loadcell_button();
         get_status_button();
         debug();
+
+        scale.set_scale(dryerInfo.calibration_factor); //Adjust to this calibration factor
+
+        Serial.print("Reading: ");
+        Serial.print(scale.get_units()*0.453592, 1);
+        Serial.print(" kg"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
+        Serial.print(" calibration_factor: ");
+        Serial.print(dryerInfo.calibration_factor);
+        Serial.println();
+
+        if(Serial.available())
+        {
+            char temp = Serial.read();
+            if(temp == '+' || temp == 'a')
+                dryerInfo.calibration_factor += 10;
+            else if(temp == '-' || temp == 'z')
+                dryerInfo.calibration_factor -= 10;
+        }
     }
     else {
         unsigned long currentMillis = millis();
@@ -857,6 +875,12 @@ void TasDryer::before_input() {
     _targetW = _w0 * _dryRate;
 
     _dryerState = STATE_INPUT;
+
+    muxShield.digitalWriteMS(2,LED_INPUT_STATE,LOW);
+    muxShield.digitalWriteMS(2,LED_STIRRER_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_MICRO_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_DISCHARGE_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_END_STATE,HIGH);
 }
 
 /**
@@ -1029,6 +1053,12 @@ void TasDryer::before_stirrer() {
     off_all_power_supply();
     set_timeout(TIME_STIRRER); // sec
 
+    muxShield.digitalWriteMS(2,LED_INPUT_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_STIRRER_STATE,LOW);
+    muxShield.digitalWriteMS(2,LED_MICRO_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_DISCHARGE_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_END_STATE,HIGH);
+
     _dryerState = STATE_STIRRER;
 }
 
@@ -1135,6 +1165,12 @@ void TasDryer::before_micro() {
 
     set_micro();
     set_timeout(TIME_MICRO); // 5min
+
+    muxShield.digitalWriteMS(2,LED_INPUT_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_STIRRER_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_MICRO_STATE,LOW);
+    muxShield.digitalWriteMS(2,LED_DISCHARGE_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_END_STATE,HIGH);
 
     _dryerState = STATE_MICRO;
 }
@@ -1250,6 +1286,12 @@ void TasDryer::before_discharge() {
 
     on_buzzer(TIME_BUZZER);
 
+    muxShield.digitalWriteMS(2,LED_INPUT_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_STIRRER_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_MICRO_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_DISCHARGE_STATE,LOW);
+    muxShield.digitalWriteMS(2,LED_END_STATE,HIGH);
+
     _dryerState = STATE_DISCHARGE;
 }
 
@@ -1261,9 +1303,9 @@ void TasDryer::before_discharge() {
 void TasDryer::discharge() {
     if(_w1 < 1) {
         if(output_door_status == OPEN) {
-            if(lcd_status != OPEN_OUTPUT_DOOR) {
-                lcd_dis_open_door_log();
-                lcd_status = OPEN_OUTPUT_DOOR;
+            if(lcd_status != CLOSE_OUTPUT_DOOR) {
+                lcd_dis_close_door_log();
+                lcd_status = CLOSE_OUTPUT_DOOR;
 
                 on_buzzer(TIME_BUZZER);
             }
@@ -1286,11 +1328,18 @@ void TasDryer::discharge() {
     else {
         if(output_door_status == OPEN) {
             off_buzzer();
+
+            if(lcd_status != DISCHARGING) {
+                lcd_discharge_log();
+                lcd_status = DISCHARGING;
+
+                on_buzzer(TIME_BUZZER);
+            }
         }
         else {
-            if(lcd_status != CLOSE_OUTPUT_DOOR) {
-                lcd_dis_close_door_log();
-                lcd_status = CLOSE_OUTPUT_DOOR;
+            if(lcd_status != OPEN_OUTPUT_DOOR) {
+                lcd_dis_open_door_log();
+                lcd_status = OPEN_OUTPUT_DOOR;
 
                 on_buzzer(TIME_BUZZER);
             }
@@ -1309,6 +1358,12 @@ void TasDryer::before_end() {
     off_all_power_supply();
 
     set_timeout(TIME_STIRRER*2); // 10min
+
+    muxShield.digitalWriteMS(2,LED_INPUT_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_STIRRER_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_MICRO_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_DISCHARGE_STATE,HIGH);
+    muxShield.digitalWriteMS(2,LED_END_STATE,LOW);
 
     _dryerState = STATE_END;
     endTimeout = 0;
@@ -2112,7 +2167,7 @@ void TasDryer::get_loadcell_button() {
     if (curStatus1 == LOW && _loadUpFlag == DOWN && curStatus2 == LOW && _loadDownFlag == DOWN) {
         _loadUpCount++;
         _loadDownCount++;
-        if ((_loadUpCount+_loadDownCount) >= 2048) {
+        if ((_loadUpCount+_loadDownCount) >= 48) {
             _loadUpCount = 0;
             _loadDownCount = 0;
             _dryerEvent |= EVENT_LOADCELL_BTN_UP_DOWN_PRESSED;
@@ -2125,8 +2180,8 @@ void TasDryer::get_loadcell_button() {
         }
         else if (curStatus1 == LOW && _loadUpFlag == DOWN && _loadDownFlag == UP) {
             _loadUpCount++;
-            if (_loadUpCount >= 512) {
-                _loadUpCount = 512;
+            if (_loadUpCount >= 24) {
+                _loadUpCount = 24;
                 _dryerEvent |= EVENT_LOADCELL_BTN_UP_PRESSED;
             }
         }
@@ -2146,8 +2201,8 @@ void TasDryer::get_loadcell_button() {
         }
         else if (curStatus2 == LOW && _loadDownFlag == DOWN && _loadUpFlag == UP) {
             _loadDownCount++;
-            if (_loadDownCount >= 512) {
-                _loadDownCount = 512;
+            if (_loadDownCount >= 24) {
+                _loadDownCount = 24;
                 _dryerEvent |= EVENT_LOADCELL_BTN_DOWN_PRESSED;
             }
         }
@@ -2768,6 +2823,14 @@ void TasDryer::lcd_dis_close_door_log() {
     lcd.setCursor(0,0);
     lcd.print("DIS: CLOSE OUT_DOOR");
 }
+
+void TasDryer::lcd_discharge_log() {
+    lcd.setCursor(0,0);
+    lcd.print("                    ");
+    lcd.setCursor(0,0);
+    lcd.print("DISCHARGING");
+}
+
 
 void TasDryer::lcd_dis2end_log() {
     lcd.setCursor(0,0);

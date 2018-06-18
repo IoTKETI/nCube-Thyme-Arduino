@@ -261,6 +261,7 @@ class TasDryer
     void lcd_micro_overload_log();
     void lcd_dis_open_door_log();
     void lcd_dis_close_door_log();
+    void lcd_discharge_log();
     void lcd_dis2end_log();
     void lcd_end_close_out_door_log();
     void lcd_end_close_in_door_log();
