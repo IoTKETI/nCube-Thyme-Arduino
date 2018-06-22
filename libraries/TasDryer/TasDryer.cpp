@@ -1280,8 +1280,8 @@ void TasDryer::micro() {
 * @return 없음
 */
 void TasDryer::before_discharge() {
-    stirrer_status = HIGH_TURN;
-    set_stirrer(STOP);
+    stirrer_status = STOP;
+    set_stirrer(TURN);
     off_all_power_supply();
 
     on_buzzer(TIME_BUZZER);
