@@ -305,15 +305,8 @@ void TasDryer::begin() {
 
     // loadcell 초기화
     scale.set_scale(dryerInfo.calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
-<<<<<<< HEAD
-<<<<<<< .merge_file_a18772
-    //scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
-=======
     // scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
->>>>>>> .merge_file_a24900
-=======
-    // scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
->>>>>>> 3b70b43bbf609784eb34f8fc2022d05ca4fc070c
+
     #if DEBUG_PRINT
     Serial.print("SCALE_INIT");
     #endif
@@ -1244,7 +1237,7 @@ void TasDryer::micro() {
                     }
                 }
                 else {
-            		    _turnError = 0;
+            		_turnError = 0;
                     stirrer_status = STOP;
                     set_stirrer(TURN);
                 }
@@ -1292,8 +1285,8 @@ void TasDryer::micro() {
 * @return 없음
 */
 void TasDryer::before_discharge() {
-    stirrer_status = STOP;
-    set_stirrer(TURN);
+    stirrer_status = TURN;
+    set_stirrer(STOP);
     off_all_power_supply();
 
     on_buzzer(TIME_BUZZER);
@@ -1342,6 +1335,8 @@ void TasDryer::discharge() {
             off_buzzer();
 
             if(lcd_status != DISCHARGING) {
+                stirrer_status = STOP;
+                set_stirrer(TURN);
                 lcd_discharge_log();
                 lcd_status = DISCHARGING;
 
@@ -1350,6 +1345,8 @@ void TasDryer::discharge() {
         }
         else {
             if(lcd_status != OPEN_OUTPUT_DOOR) {
+                stirrer_status = TURN;
+                set_stirrer(STOP);
                 lcd_dis_open_door_log();
                 lcd_status = OPEN_OUTPUT_DOOR;
 
@@ -1990,14 +1987,14 @@ float_t TasDryer::get_loadcell() {
 
     weight -= dryerInfo.calibration_value;
 
-    //if(weight <= 0.0) {
-    //   weight = 0.0;
-    //}
+    if(weight <= 0.0) {
+       weight = 0.0;
+    }
 
-    //scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
-    //return round(scale_avg*10)/10.0;
+    scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
+    return round(scale_avg*10)/10.0;
 
-    return weight;
+    //return weight;
 }
 
 /**
@@ -2272,15 +2269,7 @@ bool TasDryer::get_stirrer() {
     bool status = NORMAL;
 
     // todo: overload 상태의 전류 확인
-<<<<<<< HEAD
-<<<<<<< .merge_file_a18772
     if(_stirrerCurrent > 100) {
-=======
-    if(_stirrerCurrent > 50) {
->>>>>>> .merge_file_a24900
-=======
-    if(_stirrerCurrent > 50) {
->>>>>>> 3b70b43bbf609784eb34f8fc2022d05ca4fc070c
        status = OVERLOAD;
     }
 
