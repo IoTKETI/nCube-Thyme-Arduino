@@ -303,7 +303,7 @@ void TasDryer::begin() {
 
     // loadcell 초기화
     scale.set_scale(dryerInfo.calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
-    scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
+    //scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
     #if DEBUG_PRINT
     Serial.print("SCALE_INIT");
     #endif
@@ -1232,7 +1232,7 @@ void TasDryer::micro() {
                     }
                 }
                 else {
-            		_turnError = 0;
+            		    _turnError = 0;
                     stirrer_status = STOP;
                     set_stirrer(TURN);
                 }
@@ -2260,7 +2260,7 @@ bool TasDryer::get_stirrer() {
     bool status = NORMAL;
 
     // todo: overload 상태의 전류 확인
-    if(_stirrerCurrent > 15) {
+    if(_stirrerCurrent > 100) {
        status = OVERLOAD;
     }
 
