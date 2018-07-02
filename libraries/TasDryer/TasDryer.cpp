@@ -33,6 +33,7 @@ MuxShield muxShield;
 
 typedef struct _DryerInfo_t {
     float_t calibration_factor;
+    float_t calibration_value;
 } DryerInfo_t;
 
 FlashStorage(my_flash_store, DryerInfo_t);
@@ -162,7 +163,8 @@ void TasDryer::begin() {
     dryerInfo = my_flash_store.read();
 
     if(dryerInfo.calibration_factor == 0) {
-        dryerInfo.calibration_factor = -3470.0;
+        dryerInfo.calibration_factor = -2004.0;
+        dryerInfo.calibration_value = 0.0;
         my_flash_store.write(dryerInfo);
     }
 
@@ -303,7 +305,11 @@ void TasDryer::begin() {
 
     // loadcell 초기화
     scale.set_scale(dryerInfo.calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
+<<<<<<< .merge_file_a18772
     //scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
+=======
+    // scale.tare(); //Assuming there is no weight on the scale at start up, reset the scale to 0
+>>>>>>> .merge_file_a24900
     #if DEBUG_PRINT
     Serial.print("SCALE_INIT");
     #endif
@@ -402,23 +408,23 @@ void TasDryer::print_info_lcd() {
         _preTargetW = _targetW;
     }
 
-    if(_preMicroMode != _microMode) {
-        lcd.setCursor(0,2);
-        lcd.print("     ");
-        lcd.setCursor(0,2);
-        lcd.print(_microMode);
+ //   if(_preMicroMode != _microMode) {
+ //       lcd.setCursor(0,2);
+ //       lcd.print("     ");
+ //       lcd.setCursor(0,2);
+ //       lcd.print(_microMode);
 
-        _preMicroMode = _microMode;
-    }
+ //       _preMicroMode = _microMode;
+ //   }
 
-    if(_preMicroIdx != _microIdx) {
-        lcd.setCursor(15,2);
-        lcd.print("     ");
-        lcd.setCursor(15,2);
-        lcd.print(_microIdx);
+    // if(_preMicroIdx != _microIdx) {
+    //     lcd.setCursor(15,2);
+    //     lcd.print("     ");
+    //     lcd.setCursor(15,2);
+    //     lcd.print(_microIdx);
 
-        _preMicroIdx = _microIdx;
-    }
+    //     _preMicroIdx = _microIdx;
+    // }
 
     if(_preCurTick != _curTick) {
         lcd.setCursor(0,3);
@@ -771,6 +777,8 @@ void TasDryer::debug() {
                 _dryerEvent &= ~EVENT_LOADCELL_BTN_UP_DOWN_PRESSED;
 
                 scale.set_scale(dryerInfo.calibration_factor);
+                dryerInfo.calibration_value = get_loadcell();
+                // scale.tare();
 
                 my_flash_store.write(dryerInfo);
                 lcd.setCursor(0,1);
@@ -1190,10 +1198,10 @@ void TasDryer::micro() {
 
             set_micro();
 
-            if(lcd_status != MICRO_MODE) {
+            //if(lcd_status != MICRO_MODE) {
     			lcd_micro_mode_log();
     			lcd_status = MICRO_MODE;
-    		}
+    		//}
             return;
         }
         else {
@@ -1976,7 +1984,7 @@ float_t TasDryer::get_loadcell() {
 
     weight = (scale.get_units()) * 0.453592; //scale.get_units() returns a float
 
-    //weight -= 1319.9;
+    weight -= dryerInfo.calibration_value;
 
     //if(weight <= 0.0) {
     //   weight = 0.0;
@@ -2260,7 +2268,11 @@ bool TasDryer::get_stirrer() {
     bool status = NORMAL;
 
     // todo: overload 상태의 전류 확인
+<<<<<<< .merge_file_a18772
     if(_stirrerCurrent > 100) {
+=======
+    if(_stirrerCurrent > 50) {
+>>>>>>> .merge_file_a24900
        status = OVERLOAD;
     }
 
