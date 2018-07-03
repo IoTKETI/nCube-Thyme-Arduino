@@ -164,7 +164,7 @@ void TasDryer::begin() {
 
     if(dryerInfo.calibration_factor == 0) {
         dryerInfo.calibration_factor = -2004.0;
-        dryerInfo.calibration_value = 0.0;
+        dryerInfo.calibration_value = 0;
         my_flash_store.write(dryerInfo);
     }
 
@@ -1631,9 +1631,9 @@ void TasDryer::get_stirrer_current() {
                     else if(0x41 <= responseFrame[4] && responseFrame[4] <= 0x46) {
                         ampare = responseFrame[4]-0x37;
                     }
-                    else {
-                        ampare = 0;
-                    }
+                    // else {
+                    //     ampare = 0;
+                    // }
                     ampare <<= 8;
                     if(0x30 <= responseFrame[5] && responseFrame[5] <= 0x39) {
                         ampare |= responseFrame[5]-0x30;
@@ -1641,9 +1641,9 @@ void TasDryer::get_stirrer_current() {
                     else if(0x41 <= responseFrame[5] && responseFrame[5] <= 0x46) {
                         ampare |= responseFrame[5]-0x37;
                     }
-                    else {
-                        ampare = 0;
-                    }
+                    // else {
+                    //     ampare = 0;
+                    // }
                     ampare <<= 8;
                     if(0x30 <= responseFrame[6] && responseFrame[6] <= 0x39) {
                         ampare |= responseFrame[6]-0x30;
@@ -1651,9 +1651,9 @@ void TasDryer::get_stirrer_current() {
                     else if(0x41 <= responseFrame[6] && responseFrame[6] <= 0x46) {
                         ampare |= responseFrame[6]-0x37;
                     }
-                    else {
-                        ampare = 0;
-                    }
+                    // else {
+                    //     ampare = 0;
+                    // }
                     ampare <<= 8;
                     if(0x30 <= responseFrame[7] && responseFrame[7] <= 0x39) {
                         ampare |= responseFrame[7]-0x30;
@@ -1661,16 +1661,16 @@ void TasDryer::get_stirrer_current() {
                     else if(0x41 <= responseFrame[7] && responseFrame[7] <= 0x46) {
                         ampare |= responseFrame[7]-0x37;
                     }
-                    else {
-                        ampare = 0;
-                    }
+                    // else {
+                    //     ampare = 0;
+                    // }
 
-                    if(ampare >= 50) {
-                        _stirrerCurrent = _preStirrerCurrent;
-                    }
-                    else {
+                    // if(ampare >= 50) {
+                    //     _stirrerCurrent = _preStirrerCurrent;
+                    // }
+                    // else {
                         _stirrerCurrent = ampare;
-                    }
+                    // }
 
                     _dryerEvent |= EVENT_DRYER_STIRRER_CURRENT;
                 }
@@ -1972,6 +1972,14 @@ void TasDryer::chk_loadcell() {
 
     //Serial.print("load : ");
     //Serial.println(weight);
+
+    // if(weight <= 0.0) {
+    //    weight = 0.0;
+    // }
+
+    //scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
+    //_w1 = round(scale_avg*10)/10.0;
+
     _w1 = weight;
 }
 
@@ -1983,18 +1991,11 @@ void TasDryer::chk_loadcell() {
 float_t TasDryer::get_loadcell() {
     float_t weight = 3.14;
 
-    weight = (scale.get_units()) * 0.453592; //scale.get_units() returns a float
+    weight = (scale.get_units(4)) * 0.453592; //scale.get_units() returns a float
 
     weight -= dryerInfo.calibration_value;
 
-    if(weight <= 0.0) {
-       weight = 0.0;
-    }
-
-    scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
-    return round(scale_avg*10)/10.0;
-
-    //return weight;
+    return weight;
 }
 
 /**
