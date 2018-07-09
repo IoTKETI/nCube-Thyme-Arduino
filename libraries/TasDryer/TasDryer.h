@@ -181,6 +181,7 @@ class TasDryer
     uint8_t _preCoolerFlag;
     uint32_t _preStirrerCurrent;
     uint8_t endTimeout;
+    uint8_t _preStirrerStatus;
 
     uint8_t stirrer_status;
     uint8_t lcd_status;
@@ -190,6 +191,12 @@ class TasDryer
     float_t _microACCurrtntValue2;
     float_t _microACCurrtntValue3;
     float_t _microACCurrtntValue4;
+
+    uint32_t _elapsed_micro_tick;
+    uint8_t _elapsed_micro_h;
+    uint8_t _elapsed_micro_m;
+    uint8_t _elapsed_micro_s;
+    uint32_t _preElapsedMicroTick;
 
     uint8_t get_debug_select();
     float_t get_loadcell();
@@ -226,6 +233,10 @@ class TasDryer
     void on_all_cooler();
     bool off_micro_cooler();
     void set_micro();
+    void set_micro_mode1();
+    void set_micro_mode2();
+    void set_micro_mode3();
+    void set_micro_mode4();
     void set_micro_before();
     void chk_pt100();
     void chk_loadcell();

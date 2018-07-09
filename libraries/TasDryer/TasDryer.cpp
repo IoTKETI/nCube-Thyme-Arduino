@@ -43,10 +43,6 @@ FlashStorage(my_flash_store, DryerInfo_t);
 #define LOADCELL_DOUT_PIN   6
 #define LOADCELL_CLK_PIN    5
 
-#define MICRO_LATCH_PIN     10
-#define MICRO_CLOCK_PIN     11
-#define MICRO_DATA_PIN      12
-
 #define STIRRER_TXD_PIN     1
 #define STIRRER_RXD_PIN     0
 
@@ -110,6 +106,7 @@ FlashStorage(my_flash_store, DryerInfo_t);
 #define MICRO_MODE1     1
 #define MICRO_MODE2     2
 #define MICRO_MODE3     3
+#define MICRO_MODE4     4
 
 #define OFF             false
 #define ON              true
@@ -120,7 +117,11 @@ FlashStorage(my_flash_store, DryerInfo_t);
 
 #define TIME_STIRRER    60 // sec
 #define TIME_MICRO      60 // sec
-#define TIME_MICRO_FIRST    40 // times = TIME_MICRO * TIME_MICRO_FIRST sec
+#define TIME_MICRO_TICK_COUNT1    40 // times = TIME_MICRO * TIME_MICRO_FIRST sec
+#define TIME_MICRO_TICK_COUNT2    5 // times = TIME_MICRO * TIME_MICRO_FIRST sec
+#define TIME_MICRO_TICK_COUNT3    10 // times = TIME_MICRO * TIME_MICRO_FIRST sec
+#define TIME_MICRO_TICK_COUNT4    15 // times = TIME_MICRO * TIME_MICRO_FIRST sec
+#define TIME_DISCHARGE      300 // sec
 #define TIME_BUZZER     60 // sec
 
 
@@ -264,36 +265,8 @@ void TasDryer::begin() {
     _debugSelFlag = 0;
     _debugSelStatus = 0;
 
-    // DEODORIZE PIN 설정
-/*    pinMode(DEODORIZE_PIN, OUTPUT);
-    digitalWrite(DEODORIZE_PIN, LOW);
-
-    // MICRO 제어 PIN 설정
-    pinMode(MICRO_LATCH_PIN, OUTPUT);
-    pinMode(MICRO_CLOCK_PIN, OUTPUT);
-    pinMode(MICRO_DATA_PIN, OUTPUT);
-
-    digitalWrite(MICRO_LATCH_PIN, LOW);
-    shiftOut(MICRO_DATA_PIN, MICRO_CLOCK_PIN, LSBFIRST, _microCtrl);
-    digitalWrite(MICRO_LATCH_PIN, HIGH);
-
-    updateShiftRegister();*/
-
-    // dryRate 설정 PIN 설정
-  //    pinMode(DRY_RATE0_PIN, INPUT);
-
-  //   Serial.println("HX711 calibration sketch");
-  // Serial.println("Remove all weight from scale");
-  // Serial.println("After readings begin, place known weight on scale");
-  // Serial.println("Press + or a to increase calibration factor");
-  // Serial.println("Press - or z to decrease calibration factor");
-  //
-  // scale.set_scale();
-  // scale.tare(); //Reset the scale to 0
-  //
-  // long zero_factor = scale.read_average(); //Get a baseline reading
-  // Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
-  // Serial.println(zero_factor);
+    stirrer_status = STOP;
+    _preStirrerStatus = TURN;
 
     dryerInfo = my_flash_store.read();
 
@@ -317,7 +290,7 @@ void TasDryer::begin() {
 }
 
 uint8_t TasDryer::get_wifi_select() {
-    int analog1 = muxShield.analogReadMS(1, WIFI_SELECT_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, WIFI_SELECT_PIN);
 
     if(analog1 > 512) {
         return 1;
@@ -329,7 +302,7 @@ uint8_t TasDryer::get_wifi_select() {
 
 uint8_t TasDryer::get_debug_select() {
     uint8_t curStatus = 0;
-    int analog1 = muxShield.analogReadMS(1, DEBUG_SELECT_BTN_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, DEBUG_SELECT_BTN_PIN);
     if(analog1 > 512) {
         curStatus = 1;
     }
@@ -369,41 +342,75 @@ uint8_t TasDryer::get_debug_select() {
 * @return 없음
 */
 void TasDryer::print_info_lcd() {
-    if(_preDryerState != _dryerState) {
-        lcd.setCursor(0,1);
-        lcd.print("   ");
-        lcd.setCursor(0,1);
-        lcd.print(_dryerState);
-
-        _preDryerState = _dryerState;
-    }
+    // if(_preDryerState != _dryerState) {
+    //     lcd.setCursor(0,1);
+    //     lcd.print("   ");
+    //     lcd.setCursor(0,1);
+    //     lcd.print(_dryerState);
+    //
+    //     _preDryerState = _dryerState;
+    // }
 
     if(_preW1 != _w1) {
-        lcd.setCursor(4,1);
+        lcd.setCursor(0,1);
         lcd.print("     ");
-        lcd.setCursor(4,1);
+        lcd.setCursor(0,1);
         lcd.print(_w1, 1);
 
         _preW1 = _w1;
     }
 
-    if(_preW0 != _w0) {
-        lcd.setCursor(9,1);
-        lcd.print("     ");
-        lcd.setCursor(9,1);
-        lcd.print(_w0, 1);
-
-        _preW0 = _w0;
-    }
+    // if(_preW0 != _w0) {
+    //     lcd.setCursor(9,1);
+    //     lcd.print("     ");
+    //     lcd.setCursor(9,1);
+    //     lcd.print(_w0, 1);
+    //
+    //     _preW0 = _w0;
+    // }
 
     if(_preTargetW != _targetW) {
-        lcd.setCursor(15,1);
+        lcd.setCursor(5,1);
         lcd.print("     ");
-        lcd.setCursor(15,1);
+        lcd.setCursor(5,1);
         lcd.print(_targetW, 1);
 
         _preTargetW = _targetW;
     }
+
+    // if(_preStirrerStatus != stirrer_status) {
+    //     lcd.setCursor(10,1);
+    //     lcd.print("   ");
+    //     lcd.setCursor(10,1);
+    //
+    //     if(stirrer_status == STOP) {
+    //         lcd.print("STOP");
+    //     }
+    //     else {
+    //         lcd.print("TURN");
+    //     }
+    //
+    //     _preStirrerStatus = stirrer_status;
+    // }
+
+    if(_preStirrerCurrent != _stirrerCurrent) {
+        lcd.setCursor(10,3);
+        lcd.print("     ");
+        lcd.setCursor(10,3);
+        lcd.print(_stirrerCurrent);
+
+        _preStirrerCurrent = _stirrerCurrent;
+    }
+
+    if(_preTemperature != _temperature) {
+        lcd.setCursor(15,1);
+        lcd.print("     ");
+        lcd.setCursor(15,1);
+        lcd.print(_temperature);
+
+        _preTemperature = _temperature;
+    }
+
 
  //   if(_preMicroMode != _microMode) {
  //       lcd.setCursor(0,2);
@@ -432,22 +439,25 @@ void TasDryer::print_info_lcd() {
         _preCurTick = _curTick;
     }
 
-    if(_preTemperature != _temperature) {
+    // if(_preStirrerCurrent != _stirrerCurrent) {
+    //     lcd.setCursor(15,3);
+    //     lcd.print("     ");
+    //     lcd.setCursor(15,3);
+    //     lcd.print(_stirrerCurrent);
+    //
+    //     _preStirrerCurrent = _stirrerCurrent;
+    // }
+
+    if(_preElapsedMicroTick != _elapsed_micro_tick) {
         lcd.setCursor(10,3);
-        lcd.print("     ");
+        lcd.print("          ");
         lcd.setCursor(10,3);
-        lcd.print(_temperature);
+        _elapsed_micro_h = _elapsed_micro_tick/3600;
+        _elapsed_micro_m = _elapsed_micro_tick%3600/60;
+        _elapsed_micro_s = _elapsed_micro_tick%3600%60;
+        lcd.print(String(_elapsed_micro_h) + ":" + String(_elapsed_micro_m) + ":" + String(_elapsed_micro_s));
 
-        _preTemperature = _temperature;
-    }
-
-    if(_preStirrerCurrent != _stirrerCurrent) {
-        lcd.setCursor(15,3);
-        lcd.print("     ");
-        lcd.setCursor(15,3);
-        lcd.print(_stirrerCurrent);
-
-        _preStirrerCurrent = _stirrerCurrent;
+        _preElapsedMicroTick = _elapsed_micro_tick;
     }
 }
 
@@ -462,36 +472,36 @@ String TasDryer::getDryerStatus() {
     String status = "";
 
     if(_dryerState == STATE_INPUT) {
-        status += "IN";
+        status += "I";
     }
     else if(_dryerState == STATE_DOOR) {
-        status += "DO";
+        status += "D";
     }
     else if(_dryerState == STATE_STIRRER) {
-        status += "ST";
+        status += "S";
     }
     else if(_dryerState == STATE_MICRO) {
-        status += "MI";
+        status += "M";
     }
     else if(_dryerState == STATE_DISCHARGE) {
-        status += "DI";
+        status += "D";
     }
     else if(_dryerState == STATE_END) {
-        status += "EN";
+        status += "E";
     }
-    status += "; ";
+    status += ",";
 
     status += String(_w1);
-    status += "; ";
+    status += ",";
 
     status += String(_targetW);
-    status += "; ";
+    status += ",";
 
     status += String(_temperature);
-    status += "; ";
+    status += ",";
 
     status += String(_stirrerCurrent);
-    status += "; ";
+    status += ",";
 
     return status;
 }
@@ -506,6 +516,7 @@ uint8_t test_count = 0;
 uint32_t dryer_previousMillis = 0;
 uint32_t dryer_interval = 1000;
 uint32_t dryer_tick = 0;
+
 
 uint8_t input_door_status = CLOSE;
 uint8_t output_door_status = CLOSE;
@@ -543,6 +554,10 @@ void TasDryer::loop() {
 
             dryer_tick++;
 
+            if(_dryerState == STATE_MICRO) {
+                _elapsed_micro_tick++;
+            }
+
             if(dryer_tick%2 == 0) {
                 chk_pt100();
             }
@@ -552,6 +567,9 @@ void TasDryer::loop() {
             }
 
             chk_loadcell();
+            if(_dryerState == STATE_INPUT) {
+                _targetW = _w1 * _dryRate;
+            }
             get_current_micro();
             print_info_lcd();
 
@@ -611,6 +629,9 @@ void TasDryer::init() {
 
     // @todo 센서 체킹
     uint8_t check_count = 0;
+
+    _elapsed_micro_tick = 0;
+    _preElapsedMicroTick = 1;
 
     _w0 = _w1;
     if(_w0 >= 0.0) {
@@ -1086,7 +1107,6 @@ void TasDryer::stirrer() {
             muxShield.digitalWriteMS(2,LED_RGB_R,LOW);
             muxShield.digitalWriteMS(2,LED_RGB_G,LOW);
             muxShield.digitalWriteMS(2,LED_RGB_B,HIGH);
-            return;
         }
         else {
             if(_dryerEvent & EVENT_DRYER_STIRRER_TICK) {
@@ -1120,7 +1140,6 @@ void TasDryer::stirrer() {
                         }
 
                         before_error(STATE_STIRRER);
-                        return;
                     }
                 }
                 else {
@@ -1138,7 +1157,6 @@ void TasDryer::stirrer() {
                 lcd_status = INPUT_DOOR_OPEN;
             }
             before_door();
-            return;
         }
         else if(output_door_status == OPEN) {
             if(lcd_status != INPUT_DOOR_OPEN) {
@@ -1146,7 +1164,6 @@ void TasDryer::stirrer() {
                 lcd_status = INPUT_DOOR_OPEN;
             }
             before_door();
-            return;
         }
     }
 }
@@ -1157,6 +1174,7 @@ void TasDryer::stirrer() {
 * @param 없음
 * @return 없음
 */
+int microCheckCount = 0;
 void TasDryer::before_micro() {
     on_deodorize();
 
@@ -1167,9 +1185,13 @@ void TasDryer::before_micro() {
 
     _microMode = MICRO_MODE1;
     _microTick = 0;
+    _microIdx = 0;
+    _elapsed_micro_tick = 0;
+    microCheckCount = 0;
 
-    set_micro();
-    set_timeout(TIME_MICRO); // 5min
+
+    set_micro_mode1();
+    set_timeout(TIME_MICRO); // 1min
 
     muxShield.digitalWriteMS(2,LED_INPUT_STATE,HIGH);
     muxShield.digitalWriteMS(2,LED_STIRRER_STATE,HIGH);
@@ -1201,14 +1223,17 @@ void TasDryer::micro() {
     		//}
 
             if(_w1 < _targetW) {
-                if(lcd_status != DISCHARGE) {
-                    lcd_micro2dis_log();
-                    lcd_status = DISCHARGE;
+                microCheckCount++;
+                if(microCheckCount > 1) {
+                    if(lcd_status != DISCHARGE) {
+                        lcd_micro2dis_log();
+                        lcd_status = DISCHARGE;
+                    }
+                    before_discharge();
+                    muxShield.digitalWriteMS(2,LED_RGB_R,HIGH);
+                    muxShield.digitalWriteMS(2,LED_RGB_G,LOW);
+                    muxShield.digitalWriteMS(2,LED_RGB_B,LOW);
                 }
-                before_discharge();
-                muxShield.digitalWriteMS(2,LED_RGB_R,HIGH);
-                muxShield.digitalWriteMS(2,LED_RGB_G,LOW);
-                muxShield.digitalWriteMS(2,LED_RGB_B,LOW);
             }
         }
         else {
@@ -1284,6 +1309,8 @@ void TasDryer::before_discharge() {
     set_stirrer(STOP);
     off_all_power_supply();
 
+    set_timeout(TIME_DISCHARGE); // 5min
+
     on_buzzer(TIME_BUZZER);
 
     muxShield.digitalWriteMS(2,LED_INPUT_STATE,HIGH);
@@ -1302,51 +1329,63 @@ void TasDryer::before_discharge() {
 * @return 없음
 */
 void TasDryer::discharge() {
-    if(_w1 < 1.0 && dis_flag == DISCHARGING) {
-        if(output_door_status == OPEN) {
-            if(lcd_status != CLOSE_OUTPUT_DOOR) {
-                lcd_dis_close_door_log();
-                lcd_status = CLOSE_OUTPUT_DOOR;
+    if (_curTick - _preTick >= _interval) {
+        _preTick = _curTick;
 
-                on_buzzer(TIME_BUZZER);
-            }
-        }
-        else {
-            on_buzzer(TIME_BUZZER);
+        // timeout
+        stirrer_status = TURN;
+        set_stirrer(STOP);
+        off_all_power_supply();
 
-            if(lcd_status != END) {
-                lcd_dis2end_log();
-                lcd_status = END;
-            }
-
-            before_end();
-            muxShield.digitalWriteMS(2,LED_RGB_R,HIGH);
-            muxShield.digitalWriteMS(2,LED_RGB_G,HIGH);
-            muxShield.digitalWriteMS(2,LED_RGB_B,HIGH);
-        }
+        off_all_cooler();
     }
     else {
-        if(output_door_status == OPEN) {
-            off_buzzer();
+        if(_w1 < 0.5 && dis_flag == DISCHARGING) {
+            if(output_door_status == OPEN) {
+                if(lcd_status != CLOSE_OUTPUT_DOOR) {
+                    lcd_dis_close_door_log();
+                    lcd_status = CLOSE_OUTPUT_DOOR;
 
-            if(lcd_status != DISCHARGING) {
-                stirrer_status = STOP;
-                set_stirrer(TURN);
-                lcd_discharge_log();
-                lcd_status = DISCHARGING;
-                dis_flag = DISCHARGING;
-
+                    on_buzzer(TIME_BUZZER);
+                }
+            }
+            else {
                 on_buzzer(TIME_BUZZER);
+
+                if(lcd_status != END) {
+                    lcd_dis2end_log();
+                    lcd_status = END;
+                }
+
+                before_end();
+                muxShield.digitalWriteMS(2,LED_RGB_R,HIGH);
+                muxShield.digitalWriteMS(2,LED_RGB_G,HIGH);
+                muxShield.digitalWriteMS(2,LED_RGB_B,HIGH);
             }
         }
         else {
-            if(lcd_status != OPEN_OUTPUT_DOOR) {
-                stirrer_status = TURN;
-                set_stirrer(STOP);
-                lcd_dis_open_door_log();
-                lcd_status = OPEN_OUTPUT_DOOR;
+            if(output_door_status == OPEN) {
+                off_buzzer();
 
-                on_buzzer(TIME_BUZZER);
+                if(lcd_status != DISCHARGING) {
+                    stirrer_status = STOP;
+                    set_stirrer(TURN);
+                    lcd_discharge_log();
+                    lcd_status = DISCHARGING;
+                    dis_flag = DISCHARGING;
+
+                    on_buzzer(TIME_BUZZER);
+                }
+            }
+            else {
+                if(lcd_status != OPEN_OUTPUT_DOOR) {
+                    stirrer_status = TURN;
+                    set_stirrer(STOP);
+                    lcd_dis_open_door_log();
+                    lcd_status = OPEN_OUTPUT_DOOR;
+
+                    on_buzzer(TIME_BUZZER);
+                }
             }
         }
     }
@@ -1384,7 +1423,11 @@ void TasDryer::end() {
         _preTick = _curTick;
 
         // timeout
+        stirrer_status = HIGH_TURN;
         set_stirrer(STOP);
+        off_all_cooler();
+        off_all_power_supply();
+
         off_deodorize();
         on_buzzer(TIME_BUZZER);
         endTimeout = 1;
@@ -1991,6 +2034,10 @@ float_t TasDryer::get_loadcell() {
 
     weight -= dryerInfo.calibration_value;
 
+    if(weight < 0.0) {
+        weight = 0.0;
+    }
+
     scale_avg = ( scale_avg * (scale_count - 1) + weight ) / scale_count; // 평균 계산
 
     return round(scale_avg*10)/10.0;
@@ -2037,7 +2084,7 @@ float_t TasDryer::get_dry_rate() {
 bool TasDryer::get_input_door() {
     uint8_t curStatus = 1;
 
-    int analog1 = muxShield.analogReadMS(1, INPUT_DOOR_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, INPUT_DOOR_PIN);
 
     if(analog1 > 512) {
         curStatus = 1;
@@ -2080,7 +2127,7 @@ bool TasDryer::get_input_door() {
 bool TasDryer::get_output_door() {
     uint8_t curStatus = 1;
 
-    int analog1 = muxShield.analogReadMS(1, OUTPUT_DOOR_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, OUTPUT_DOOR_PIN);
 
     if(analog1 > 512) {
         curStatus = 1;
@@ -2125,7 +2172,7 @@ bool TasDryer::get_start_button() {
     bool status = UP;
     uint8_t curStatus = 1;
 
-    int analog1 = muxShield.analogReadMS(1, START_BTN_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, START_BTN_PIN);
 
     if(analog1 > 512) {
         curStatus = 1;
@@ -2157,8 +2204,8 @@ bool TasDryer::get_start_button() {
 void TasDryer::get_loadcell_button() {
     uint8_t curStatus1 = 1;
     uint8_t curStatus2 = 1;
-    int analog1 = muxShield.analogReadMS(1, LOADCELL_UP_BTN_PIN);  //IO3, pin 12
-    int analog2 = muxShield.analogReadMS(1, LOADCELL_DOWN_BTN_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, LOADCELL_UP_BTN_PIN);
+    int analog2 = muxShield.analogReadMS(1, LOADCELL_DOWN_BTN_PIN);
 
     if(analog1 > 512) {
         curStatus1 = 1;
@@ -2231,7 +2278,7 @@ void TasDryer::get_loadcell_button() {
 
 void TasDryer::get_status_button() {
     uint8_t curStatus1 = 1;
-    int analog1 = muxShield.analogReadMS(1, STATUS_CTRL_BTN_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, STATUS_CTRL_BTN_PIN);
 
     if(analog1 > 512) {
         curStatus1 = 1;
@@ -2270,7 +2317,7 @@ bool TasDryer::get_stirrer() {
     bool status = NORMAL;
 
     // todo: overload 상태의 전류 확인
-    if(_stirrerCurrent > 100) {
+    if(_stirrerCurrent > 500) {
        status = OVERLOAD;
     }
 
@@ -2468,6 +2515,134 @@ void TasDryer::on_all_cooler() {
 //     }
 // }
 
+void TasDryer::set_micro_mode1() {
+    _microIdx++;
+    if(_microIdx >= 5) {
+        _microIdx = 1;
+    }
+
+    if(_microIdx == 1) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 2) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 3) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 4) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+}
+
+void TasDryer::set_micro_mode2() {
+    _microIdx++;
+    if(_microIdx >= 5) {
+        _microIdx = 1;
+    }
+
+    if(_microIdx == 1) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 2) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 3) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 4) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+    }
+}
+
+void TasDryer::set_micro_mode3() {
+    _microIdx++;
+    if(_microIdx >= 5) {
+        _microIdx = 1;
+    }
+
+    if(_microIdx == 1) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 2) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 3) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+    }
+    else if(_microIdx == 4) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+    }
+}
+
+void TasDryer::set_micro_mode4() {
+    _microIdx++;
+    if(_microIdx >= 5) {
+        _microIdx = 1;
+    }
+
+    if(_microIdx == 1) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+    }
+    else if(_microIdx == 2) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+    }
+    else if(_microIdx == 3) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+    }
+    else if(_microIdx == 4) {
+        muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
+        muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
+        muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+    }
+}
+
 /**
 * @brief 모드에 따른 마그네트론 구동
 * @param 없음
@@ -2477,80 +2652,65 @@ void TasDryer::set_micro() {
     on_all_cooler();
 
     if(_microMode == MICRO_MODE1) {
-        if(_microTick == 0) {
-            _microIdx = 0;
-
-            muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
-        }
-        else if( _microTick >= TIME_MICRO_FIRST) {
+        if( _microTick >= TIME_MICRO_TICK_COUNT1) {
             _microTick = 0;
-            _microIdx++;
-            if(_microIdx >= 5) {
-                _microIdx = 1;
+            if(_w1 > 20.0) {
+                _microMode = MICRO_MODE2;
+                set_micro_mode2();
             }
-
-            if(_microIdx == 1) {
-                muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
-                muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
+            else {
+                _microMode = MICRO_MODE3;
+                set_micro_mode3();
             }
-            else if(_microIdx == 2) {
-                muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
-                muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
-            }
-            else if(_microIdx == 3) {
-                muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
-                muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
-            }
-            else if(_microIdx == 4) {
-                muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-                muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
-            }
-
-            _microMode = MICRO_MODE2;
+            // else if(_w1 > 10.0) {
+            //     _microMode = MICRO_MODE3;
+            //     set_micro_mode3();
+            // }
+            // else {
+            //     _microMode = MICRO_MODE4;
+            //     set_micro_mode4();
+            // }
         }
     }
     else if(_microMode == MICRO_MODE2) {
-        _microIdx++;
-        if(_microIdx >= 5) {
-            _microIdx = 1;
-        }
-
-        if(_microIdx == 1) {
-            muxShield.digitalWriteMS(2,MICRO1_PIN,LOW);
-            muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
-        }
-        else if(_microIdx == 2) {
-            muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO2_PIN,LOW);
-            muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
-        }
-        else if(_microIdx == 3) {
-            muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO3_PIN,LOW);
-            muxShield.digitalWriteMS(2,MICRO4_PIN,HIGH);
-        }
-        else if(_microIdx == 4) {
-            muxShield.digitalWriteMS(2,MICRO1_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO2_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO3_PIN,HIGH);
-            muxShield.digitalWriteMS(2,MICRO4_PIN,LOW);
+        if( _microTick >= TIME_MICRO_TICK_COUNT2) {
+            _microTick = 0;
+            if(_w1 > 20.0) {
+                _microMode = MICRO_MODE2;
+                set_micro_mode2();
+            }
+            else {
+                _microMode = MICRO_MODE3;
+                set_micro_mode3();
+            }
         }
     }
+    else if(_microMode == MICRO_MODE3) {
+        if( _microTick >= TIME_MICRO_TICK_COUNT3) {
+            _microTick = 0;
+            if(_w1 > 20.0) {
+                _microMode = MICRO_MODE2;
+                set_micro_mode2();
+            }
+            else {
+                _microMode = MICRO_MODE3;
+                set_micro_mode3();
+            }
+        }
+    }
+    // else if(_microMode == MICRO_MODE4) {
+    //     if( _microTick >= TIME_MICRO_TICK_COUNT4) {
+    //         _microTick = 0;
+    //         if(_w1 > 20.0) {
+    //             _microMode = MICRO_MODE2;
+    //             set_micro_mode2();
+    //         }
+    //         else {
+    //             _microMode = MICRO_MODE3;
+    //             set_micro_mode3();
+    //         }
+    //     }
+    // }
 }
 
 /**
@@ -2559,7 +2719,7 @@ void TasDryer::set_micro() {
 * @return 온도:float_t
 */
 int TasDryer::get_pt100() {
-    int analog1 = muxShield.analogReadMS(1, PT100_PIN);  //IO3, pin 12
+    int analog1 = muxShield.analogReadMS(1, PT100_PIN);
     int temperature = PT100.readTemperature2(analog1);  //Get temperature
 
     temperature_avg = ( temperature_avg * (8 - 1) + temperature ) / 8; // 평균 계산
@@ -2796,11 +2956,20 @@ void TasDryer::lcd_micro_mode_log() {
     lcd.setCursor(0,0);
     lcd.print("                    ");
     lcd.setCursor(0,0);
-    if(_microMode == 1) {
+    if(_microMode == MICRO_MODE1) {
         lcd.print("MICRO: M1");
     }
-    else {
+    else if(_microMode == MICRO_MODE2) {
         lcd.print("MICRO: M2");
+    }
+    else if(_microMode == MICRO_MODE3) {
+        lcd.print("MICRO: M3");
+    }
+    else if(_microMode == MICRO_MODE4) {
+        lcd.print("MICRO: M4");
+    }
+    else {
+        lcd.print("MICRO:");
     }
 }
 
