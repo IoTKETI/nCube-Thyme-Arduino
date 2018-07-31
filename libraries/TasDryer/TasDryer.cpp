@@ -77,26 +77,26 @@ FlashStorage(my_flash_store, DryerInfo_t);
 #define RELEASE     2
 #define DOWNING     3
 
-#define NORMAL      0
-#define OVERLOAD    1
+#define NORMAL              0
+#define OVERLOAD            1
 #define CLOSE_OUTPUT_DOOR   2
 #define OPEN_OUTPUT_DOOR    3
-#define LOW_LOAD    4
+#define LOW_LOAD            4
 #define DISCHARGING         5
-#define STIRRER		6
-#define MICRO		7
-#define EMERGENCY		8
+#define STIRRER             6
+#define MICRO               7
+#define EMERGENCY           8
 #define INPUT_DOOR_OPEN		9
-#define ERROR       10
-#define END       11
-#define INPUT_DOOR_CLOSE       12
-#define DISCHARGE       13
-#define INIT            14
-#define OPEN_INPUT_DOOR    15
-#define DEBUG    16
-#define MICRO_MODE  17
-#define CLOSE_INPUT_DOOR 18
-#define END2INPUT 19
+#define ERROR               10
+#define END                 11
+#define INPUT_DOOR_CLOSE    12
+#define DISCHARGE           13
+#define INIT                14
+#define OPEN_INPUT_DOOR     15
+#define DEBUG               16
+#define MICRO_MODE          17
+#define CLOSE_INPUT_DOOR    18
+#define END2INPUT           19
 
 #define DOOR_OPEN       1
 #define DOOR_CLOSE      2
@@ -1177,6 +1177,7 @@ void TasDryer::stirrer() {
 int microCheckCount = 0;
 void TasDryer::before_micro() {
     on_deodorize();
+    on_all_cooler();
 
     stirrer_status = STOP;
     set_stirrer(TURN);
