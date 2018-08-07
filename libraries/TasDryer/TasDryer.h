@@ -200,6 +200,7 @@ class TasDryer
 
     uint8_t get_debug_select();
     float_t get_loadcell();
+    float_t get_loadcell_4tare();
     float_t get_dry_rate();
     bool get_input_door();
     bool get_output_door();

@@ -738,7 +738,7 @@ void TasDryer::debug() {
             lcd.print("                    ");
             scale.set_scale(dryerInfo.calibration_factor);
             lcd.setCursor(0,1);
-            lcd.print(get_loadcell());
+            lcd.print(get_loadcell_4tare());
             lcd.setCursor(10,1);
             lcd.print(dryerInfo.calibration_factor);
         }
@@ -752,7 +752,7 @@ void TasDryer::debug() {
                 lcd.print("                    ");
                 scale.set_scale(dryerInfo.calibration_factor);
                 lcd.setCursor(0,1);
-                lcd.print(get_loadcell());
+                lcd.print(get_loadcell_4tare());
                 lcd.setCursor(10,1);
                 lcd.print(dryerInfo.calibration_factor);
             }
@@ -765,7 +765,7 @@ void TasDryer::debug() {
                 lcd.print("                    ");
                 scale.set_scale(dryerInfo.calibration_factor);
                 lcd.setCursor(0,1);
-                lcd.print(get_loadcell());
+                lcd.print(get_loadcell_4tare());
                 lcd.setCursor(10,1);
                 lcd.print(dryerInfo.calibration_factor);
             }
@@ -778,7 +778,7 @@ void TasDryer::debug() {
                 lcd.print("                    ");
                 scale.set_scale(dryerInfo.calibration_factor);
                 lcd.setCursor(0,1);
-                lcd.print(get_loadcell());
+                lcd.print(get_loadcell_4tare());
                 lcd.setCursor(10,1);
                 lcd.print(dryerInfo.calibration_factor);
             }
@@ -791,7 +791,7 @@ void TasDryer::debug() {
                 lcd.print("                    ");
                 scale.set_scale(dryerInfo.calibration_factor);
                 lcd.setCursor(0,1);
-                lcd.print(get_loadcell());
+                lcd.print(get_loadcell_4tare());
                 lcd.setCursor(10,1);
                 lcd.print(dryerInfo.calibration_factor);
             }
@@ -799,7 +799,7 @@ void TasDryer::debug() {
                 _dryerEvent &= ~EVENT_LOADCELL_BTN_UP_DOWN_PRESSED;
 
                 scale.set_scale(dryerInfo.calibration_factor);
-                dryerInfo.calibration_value += get_loadcell();
+                dryerInfo.calibration_value += get_loadcell_4tare();
                 // scale.tare();
 
                 my_flash_store.write(dryerInfo);
@@ -2050,6 +2050,17 @@ float_t TasDryer::get_loadcell() {
     return round(scale_avg*10)/10.0;
 
     //return weight;
+}
+
+float_t TasDryer::get_loadcell_4tare()
+{
+    float_t weight = 3.14;
+
+    weight = (scale.get_units()) * 0.453592; //scale.get_units() returns a float
+
+    weight -= dryerInfo.calibration_value;
+
+    return round(scale_avg * 10) / 10.0;
 }
 
 /**
