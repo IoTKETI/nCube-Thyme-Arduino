@@ -2060,7 +2060,7 @@ float_t TasDryer::get_loadcell_4tare()
 
     weight -= dryerInfo.calibration_value;
 
-    return round(scale_avg * 10) / 10.0;
+    return round(weight * 10) / 10.0;
 }
 
 /**
