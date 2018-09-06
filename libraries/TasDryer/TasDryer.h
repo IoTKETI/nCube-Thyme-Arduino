@@ -237,13 +237,7 @@ class TasDryer
     void set_micro_mode1();
     void set_micro_mode2();
     void set_micro_mode3();
-<<<<<<< HEAD
     void set_micro_mode_off();
-=======
-    void set_micro_mode4();
-    void set_micro_off();
-    void set_micro_on();
->>>>>>> 007bbbfbf10e4d6a253820bded8633e4dd11192e
     void set_micro_before();
     void chk_pt100();
     void chk_loadcell();
