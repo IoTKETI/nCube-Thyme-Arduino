@@ -1,0 +1,49 @@
+{
+    "description": "Network driver for ATMEL WINC1500 module (used on Arduino/Genuino Wifi Shield 101 and MKR1000 boards)", 
+    "repository": {
+        "url": "https://github.com/arduino-libraries/WiFi101", 
+        "type": "git"
+    }, 
+    "platforms": [
+        "atmelavr", 
+        "atmelsam", 
+        "espressif32", 
+        "espressif8266", 
+        "intel_arc32", 
+        "microchippic32", 
+        "nordicnrf51", 
+        "nordicnrf52", 
+        "ststm32", 
+        "teensy", 
+        "timsp430"
+    ], 
+    "export": {
+        "exclude": [
+            "extras", 
+            "docs", 
+            "tests", 
+            "test", 
+            "*.doxyfile", 
+            "*.pdf"
+        ], 
+        "include": null
+    }, 
+    "authors": [
+        {
+            "maintainer": true, 
+            "name": "Arduino", 
+            "url": null, 
+            "email": "info@arduino.cc"
+        }
+    ], 
+    "keywords": [
+        "communication"
+    ], 
+    "id": 299, 
+    "name": "WiFi101", 
+    "frameworks": [
+        "arduino"
+    ], 
+    "version": "0.15.2", 
+    "homepage": "http://www.arduino.cc/en/Reference/WiFi101"
+}

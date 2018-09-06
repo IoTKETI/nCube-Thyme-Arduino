@@ -236,7 +236,7 @@ class TasDryer
     void set_micro_mode1();
     void set_micro_mode2();
     void set_micro_mode3();
-    void set_micro_mode4();
+    void set_micro_mode_off();
     void set_micro_before();
     void chk_pt100();
     void chk_loadcell();
@@ -244,40 +244,26 @@ class TasDryer
     void lcd_init_log();
     void lcd_input_log();
     void lcd_stirrer_log();
-    void lcd_door_log(uint8_t cases);
+    void lcd_door_log();
     void lcd_error_log();
     void lcd_micro_log();
-    void lcd_discharge_log(uint8_t cases);
+    void lcd_dis_log();
+    void lcd_discharging_log();
     void lcd_end_log();
     void lcd_emergency_log();
-    void lcd_input2door_log();
-    void lcd_init2input_log();
-    void lcd_init2debug_log();
-    void lcd_debug2input_log();
     void lcd_output_door_log();
     void lcd_input_door_log();
     void lcd_low_load_log();
-    void lcd_input2input_log();
-    void lcd_input2stirrer_log();
-    void lcd_door2input_log();
     void lcd_overload_log();
     void lcd_door2door_log();
-    void lcd_stirrer2door_log();
-    void lcd_stirrer2error_log();
-    void lcd_stirrer_overload_log();
-    void lcd_stirrer2micro_log();
     void lcd_micro_mode_log();
-    void lcd_micro2door_log();
-    void lcd_micro2error_log();
-    void lcd_micro_overload_log();
-    void lcd_micro2dis_log();
     void lcd_dis_open_door_log();
     void lcd_dis_close_door_log();
-    void lcd_discharge_log();
-    void lcd_dis2end_log();
     void lcd_end_close_out_door_log();
     void lcd_end_close_in_door_log();
-    void lcd_end2input_log();
+    void lcd_debug_log();
+    void lcd_pause_log();
+
 };
 
 #endif // TASDRYER_H

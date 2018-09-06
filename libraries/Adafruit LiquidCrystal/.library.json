@@ -1,0 +1,46 @@
+{
+    "description": "Fork of LiquidCrystal HD44780-compatible LCD driver library, now with support for ATtiny85.", 
+    "repository": {
+        "url": "https://github.com/adafruit/Adafruit_LiquidCrystal", 
+        "type": "git"
+    }, 
+    "platforms": [
+        "atmelavr", 
+        "atmelsam", 
+        "espressif8266", 
+        "intel_arc32", 
+        "microchippic32", 
+        "nordicnrf51", 
+        "teensy", 
+        "timsp430"
+    ], 
+    "export": {
+        "exclude": [
+            "extras", 
+            "docs", 
+            "tests", 
+            "test", 
+            "*.doxyfile", 
+            "*.pdf"
+        ], 
+        "include": null
+    }, 
+    "authors": [
+        {
+            "maintainer": true, 
+            "name": "Adafruit", 
+            "url": null, 
+            "email": "info@adafruit.com"
+        }
+    ], 
+    "keywords": [
+        "display"
+    ], 
+    "id": 855, 
+    "name": "Adafruit LiquidCrystal", 
+    "frameworks": [
+        "arduino"
+    ], 
+    "version": "1.0.0", 
+    "homepage": "https://github.com/adafruit/LiquidCrystal/"
+}
