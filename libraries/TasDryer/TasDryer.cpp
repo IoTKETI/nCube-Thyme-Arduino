@@ -1020,67 +1020,77 @@ void TasDryer::before_door() {
 * @return 없음
 */
 void TasDryer::door() {
-    if(input_door_status == OPEN && output_door_status == CLOSE) {
-        if(lcd_status == OPEN_OUTPUT_DOOR) {
-            lcd_door_log();
-            lcd_status = CLOSE_OUTPUT_DOOR;
-        }
+    if(_debugSelStatus == 1) {
+        lcd.clear();
+        lcd_debug_log();
+        lcd_status = DEBUG;
 
-        _curW2 = _w1;
-        if(_curW2 > 0.1) {
-            if(_curW2 > _thresholdW) {
-                on_buzzer(TIME_BUZZER);
-                if(lcd_status != OVER_WEIGHT) {
-                    lcd_over_weight_log();
-                    lcd_status = OVER_WEIGHT;
-                }
-            }
-
-            _w2 = _curW2 - _preW2;
-            if(_w2 < 0.0) {
-                _w2 = 0.0;
-            }
-
-            //if((_w0 + _w2) >= _thresholdW) {
-            if(_w1 >= _thresholdW) {
-                on_buzzer(TIME_BUZZER);
-                if(lcd_status != OVER_WEIGHT) {
-                    lcd_over_weight_log();
-                    lcd_status = OVER_WEIGHT;
-                }
-            }
-            else {
-                if(lcd_status != INPUT_DOOR_OPEN) {
-                    lcd_door_log();
-                    lcd_status = INPUT_DOOR_OPEN;
-                }
-            }
-        }
+        before_debug();
+        return;
     }
     else {
-        if(input_door_status == CLOSE) {
-            //if((_w0 + _w2) >= _thresholdW) {
-            if(_w1 >= _thresholdW) {
-                on_buzzer(TIME_BUZZER);
-                if(lcd_status != OVER_WEIGHT) {
-                    lcd_over_weight_log();
-                    lcd_status = OVER_WEIGHT;
-                }
+        if(input_door_status == OPEN && output_door_status == CLOSE) {
+            if(lcd_status == OPEN_OUTPUT_DOOR) {
+                lcd_door_log();
+                lcd_status = CLOSE_OUTPUT_DOOR;
             }
-            else {
-                if(lcd_status != INPUT_DOOR_CLOSE) {
-                    lcd_input_log();
-                    lcd_status = INPUT_DOOR_CLOSE;
+
+            _curW2 = _w1;
+            if(_curW2 > 0.1) {
+                if(_curW2 > _thresholdW) {
+                    on_buzzer(TIME_BUZZER);
+                    if(lcd_status != OVER_WEIGHT) {
+                        lcd_over_weight_log();
+                        lcd_status = OVER_WEIGHT;
+                    }
                 }
-                off_buzzer();
-                before_input();
-                return;
+
+                _w2 = _curW2 - _preW2;
+                if(_w2 < 0.0) {
+                    _w2 = 0.0;
+                }
+
+                //if((_w0 + _w2) >= _thresholdW) {
+                if(_w1 >= _thresholdW) {
+                    on_buzzer(TIME_BUZZER);
+                    if(lcd_status != OVER_WEIGHT) {
+                        lcd_over_weight_log();
+                        lcd_status = OVER_WEIGHT;
+                    }
+                }
+                else {
+                    if(lcd_status != INPUT_DOOR_OPEN) {
+                        lcd_door_log();
+                        lcd_status = INPUT_DOOR_OPEN;
+                    }
+                }
             }
         }
-        else if(output_door_status == OPEN) {
-            if(lcd_status != OPEN_OUTPUT_DOOR) {
-                lcd_output_door_log();
-                lcd_status = OPEN_OUTPUT_DOOR;
+        else {
+            if(input_door_status == CLOSE) {
+                //if((_w0 + _w2) >= _thresholdW) {
+                if(_w1 >= _thresholdW) {
+                    on_buzzer(TIME_BUZZER);
+                    if(lcd_status != OVER_WEIGHT) {
+                        lcd_over_weight_log();
+                        lcd_status = OVER_WEIGHT;
+                    }
+                }
+                else {
+                    if(lcd_status != INPUT_DOOR_CLOSE) {
+                        lcd_input_log();
+                        lcd_status = INPUT_DOOR_CLOSE;
+                    }
+                    off_buzzer();
+                    before_input();
+                    return;
+                }
+            }
+            else if(output_door_status == OPEN) {
+                if(lcd_status != OPEN_OUTPUT_DOOR) {
+                    lcd_output_door_log();
+                    lcd_status = OPEN_OUTPUT_DOOR;
+                }
             }
         }
     }
@@ -1308,6 +1318,10 @@ void TasDryer::micro() {
         }
         else {
             _microMode = _preMicroMode;
+            _microIdx--;
+            if(_microIdx == 0) {
+                _microIdx = 4;
+            }
             set_micro();
             lcd_micro_mode_log();
 
@@ -2228,28 +2242,40 @@ bool TasDryer::get_input_door() {
         curStatus = 1;
     }
 
-    if (curStatus == LOW && _inDoorFlag == UP) {
-        _inDoorOpenCount = 0;
-        _inDoorFlag = DOWN;
-    }
-    else if (curStatus == LOW && _inDoorFlag == DOWN) {
+    if (curStatus == LOW) {
         _inDoorOpenCount++;
         if (_inDoorOpenCount >= 128) {
             _inDoorOpenCount = 128;
             input_door_status = OPEN;
         }
     }
-    else if (curStatus == HIGH && _inDoorFlag == DOWN) {
+    else if (curStatus == HIGH) {
         _inDoorOpenCount = 0;
-        _inDoorFlag = UP;
+        input_door_status = CLOSE;
     }
-    else if (curStatus == HIGH && _inDoorFlag == UP) {
-        _inDoorOpenCount++;
-        if (_inDoorOpenCount >= 128) {
-            _inDoorOpenCount = 128;
-            input_door_status = CLOSE;
-        }
-    }
+
+    // if (curStatus == LOW && _inDoorFlag == UP) {
+    //     _inDoorOpenCount = 0;
+    //     _inDoorFlag = DOWN;
+    // }
+    // else if (curStatus == LOW && _inDoorFlag == DOWN) {
+    //     _inDoorOpenCount++;
+    //     if (_inDoorOpenCount >= 128) {
+    //         _inDoorOpenCount = 128;
+    //         input_door_status = OPEN;
+    //     }
+    // }
+    // else if (curStatus == HIGH && _inDoorFlag == DOWN) {
+    //     _inDoorOpenCount = 0;
+    //     _inDoorFlag = UP;
+    // }
+    // else if (curStatus == HIGH && _inDoorFlag == UP) {
+    //     _inDoorOpenCount++;
+    //     if (_inDoorOpenCount >= 128) {
+    //         _inDoorOpenCount = 128;
+    //         input_door_status = CLOSE;
+    //     }
+    // }
 
     return input_door_status;
 }
@@ -2271,28 +2297,40 @@ bool TasDryer::get_output_door() {
         curStatus = 1;
     }
 
-    if (curStatus == LOW && _outDoorFlag == UP) {
-        _outDoorOpenCount = 0;
-        _outDoorFlag = DOWN;
-    }
-    else if (curStatus == LOW && _outDoorFlag == DOWN) {
+    if (curStatus == LOW) {
         _outDoorOpenCount++;
         if (_outDoorOpenCount >= 128) {
             _outDoorOpenCount = 128;
             output_door_status = OPEN;
         }
     }
-    else if (curStatus == HIGH && _outDoorFlag == DOWN) {
+    else if (curStatus == HIGH) {
         _outDoorOpenCount = 0;
-        _outDoorFlag = UP;
+        output_door_status = CLOSE;
     }
-    else if (curStatus == HIGH && _outDoorFlag == UP) {
-        _outDoorOpenCount++;
-        if (_outDoorOpenCount >= 128) {
-            _outDoorOpenCount = 128;
-            output_door_status = CLOSE;
-        }
-    }
+
+    // if (curStatus == LOW && _outDoorFlag == UP) {
+    //     _outDoorOpenCount = 0;
+    //     _outDoorFlag = DOWN;
+    // }
+    // else if (curStatus == LOW && _outDoorFlag == DOWN) {
+    //     _outDoorOpenCount++;
+    //     if (_outDoorOpenCount >= 128) {
+    //         _outDoorOpenCount = 128;
+    //         output_door_status = OPEN;
+    //     }
+    // }
+    // else if (curStatus == HIGH && _outDoorFlag == DOWN) {
+    //     _outDoorOpenCount = 0;
+    //     _outDoorFlag = UP;
+    // }
+    // else if (curStatus == HIGH && _outDoorFlag == UP) {
+    //     _outDoorOpenCount++;
+    //     if (_outDoorOpenCount >= 128) {
+    //         _outDoorOpenCount = 128;
+    //         output_door_status = CLOSE;
+    //     }
+    // }
 
     return output_door_status;
 }
@@ -2836,7 +2874,7 @@ void TasDryer::set_micro() {
             }
         }
         else {
-            set_micro_mode2();
+            set_micro_mode3();
         }
     }
 }
