@@ -247,7 +247,6 @@ class TasDryer
     void lcd_stirrer_log();
     void lcd_door_log();
     void lcd_error_log();
-    void lcd_micro_log();
     void lcd_dis_log();
     void lcd_discharging_log();
     void lcd_end_log();
@@ -264,6 +263,7 @@ class TasDryer
     void lcd_end_close_in_door_log();
     void lcd_debug_log();
     void lcd_pause_log();
+    void lcd_over_weight_log();
 
 };
 
