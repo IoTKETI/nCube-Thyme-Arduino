@@ -1348,15 +1348,22 @@ void TasDryer::micro() {
                 if(_w1 < _targetW) {
                     microCheckCount++;
                     if(microCheckCount > 1) {
-                        if(lcd_status != DISCHARGE) {
-                            lcd_dis_log();
-                            lcd_status = DISCHARGE;
-                        }
-                        before_discharge();
-                        muxShield.digitalWriteMS(2,LED_RGB_R,HIGH);
-                        muxShield.digitalWriteMS(2,LED_RGB_G,LOW);
-                        muxShield.digitalWriteMS(2,LED_RGB_B,LOW);
+                        off_all_power_supply();
                     }
+                }
+                else {
+                    microCheckCount = 0;
+                }
+
+                if(_temperature < 45 && microCheckCount > 1) {
+                    if(lcd_status != DISCHARGE) {
+                        lcd_dis_log();
+                        lcd_status = DISCHARGE;
+                    }
+                    before_discharge();
+                    muxShield.digitalWriteMS(2,LED_RGB_R,HIGH);
+                    muxShield.digitalWriteMS(2,LED_RGB_G,LOW);
+                    muxShield.digitalWriteMS(2,LED_RGB_B,LOW);
                 }
             }
             else {
