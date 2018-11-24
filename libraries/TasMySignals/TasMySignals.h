@@ -40,7 +40,7 @@ typedef struct _sensorData_ {
     uint8_t failCounter;
 } sensorData_t;
 
-class TasMySignal {
+class TasMySignals {
     public:
         void begin();
         void loop();
