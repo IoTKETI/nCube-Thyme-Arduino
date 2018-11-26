@@ -31,7 +31,7 @@
 #define DOWN 0x01
 #define DOWNCON 0x10
 
-#define max_failcnt 5
+#define max_failcnt 3
 
 typedef struct _sensorData_ {
     uint8_t type;
