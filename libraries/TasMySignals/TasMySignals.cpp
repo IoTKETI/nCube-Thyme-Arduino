@@ -1,5 +1,5 @@
 /*
-    TasMySignal.cpp - Library for MySignal HW v2
+    TasMySignals.cpp - Library for MySignal HW v2
     Created by Chanhyung Lee in KETI Korea, November 24, 2018.
     Released into the public domain.
 */

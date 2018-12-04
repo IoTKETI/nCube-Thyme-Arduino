@@ -1,5 +1,5 @@
 /*
-    TasMySignal.h - Library for MySignal HW v2
+    TasMySignals.h - Library for MySignal HW v2
     Created by Chanhyung Lee in KETI Korea, November 24, 2018.
     Released into the public domain.
 */
@@ -29,7 +29,7 @@
 
 #define UP 0x00
 #define DOWN 0x01
-#define DOWNCON 0x10
+#define DOWNCON 0x02
 
 #define max_failcnt 3
 
