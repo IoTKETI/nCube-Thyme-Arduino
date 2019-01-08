@@ -1,6 +1,6 @@
 # nCube:Thyme for Arduino
 ## Version
-2.1.3 (20180422)
+2.1.6 (20180514)
 
 ## Introduction
 nCube:Thyme for Arduino is a light version nCube for arduino devices. </br>
