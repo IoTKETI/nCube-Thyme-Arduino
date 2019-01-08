@@ -4,7 +4,8 @@
 
 ## Introduction
 nCube:Thyme for Arduino is a light version nCube for arduino devices. </br>
-The project name: "nCube-Base". nCube-Base is a type of AE(oneM2M Resource Type) in software level.
+Also nCube:Thyme for Arduino is one of AE(Application Entity) based on oneM2M IoT standard.
+nCube:Thyme for Arduino provides example code "nCube-Air" as example of OneM2MClient library.
 
 ## Hardware
 - Arduino Zero + WiFi Module or [Adafruit Feather M0 WiFi Board](https://www.adafruit.com/product/3061)
@@ -14,12 +15,13 @@ The project name: "nCube-Base". nCube-Base is a type of AE(oneM2M Resource Type)
 </div><br/>
 
 ## Connectivity
-The sample source introduces how to use Adafruit Feather M0 WiFi Board to connect CO2 sensor, RGB LED light connect to Mobius server platform.
 
-<img src="https://user-images.githubusercontent.com/29790334/36194128-e59c054a-11ab-11e8-9723-8c0a0aed8256.png" width="600">
+The example code introduces how to use Adafruit Feather M0 WiFi Board to Adafruit CCS811 Air Quality Sensor, RGB LED light connect to Mobius server platform.
+
+<img src="https://user-images.githubusercontent.com/29790334/50813866-13ffe580-135b-11e9-9857-341dc10bdafc.png" width="600">
 
 
-- [CM1106 CO2 Sensor](http://www.gassensor.com.cn/pro/typeid/12/id/294.html)
+- [Adafruit CCS811 Air Quaality Sensor](https://www.adafruit.com/product/3566)
 - [RGB LED Module](http://alexnld.com/product/rgb-3-color-led-module-for-arduino-red-green-blue/)
 
 ## Installation
