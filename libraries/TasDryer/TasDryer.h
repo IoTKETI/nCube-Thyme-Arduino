@@ -18,6 +18,8 @@
 
 #include "Arduino.h"
 
+#include <MuxShield.h>
+
 // define Dryer state when running
 #define STATE_INIT      0x01
 #define STATE_ERROR     0x02
@@ -54,6 +56,23 @@
 #define STATE_MICRO     0x20
 #define STATE_DISCHARGE 0x40
 #define STATE_END       0x80
+#define STATE_EXCEPTION 0x02
+
+
+#define LED_RGB_R 0
+#define LED_RGB_G 1
+#define LED_RGB_B 2
+#define LED_INPUT_STATE 3
+#define LED_STIRRER_STATE 4
+#define LED_MICRO_STATE 5
+#define LED_DISCHARGE_STATE 6
+#define LED_END_STATE 7
+#define MICRO1_PIN 8
+#define MICRO2_PIN 9
+#define MICRO3_PIN 10
+#define MICRO4_PIN 11
+#define COOLER_PIN 12
+#define DEODORIZE_PIN 13
 
 /**
 * @brief Dryer(음식물건조기)를 구동하기 위한 클래스이다.
@@ -74,6 +93,8 @@ class TasDryer
     void init();
     void before_error(uint8_t code);
     void error();
+    void before_exception();
+    void exception();
     void before_input();
     void input();
     void before_stirrer();
@@ -94,6 +115,8 @@ class TasDryer
     void loop();
 
     void print_info_lcd();
+
+    MuxShield muxShield;
 
   private:
     float_t _dryRate;  // 건조도
@@ -249,6 +272,7 @@ class TasDryer
     void lcd_error_log();
     void lcd_dis_log();
     void lcd_discharging_log();
+    void lcd_exception_log();
     void lcd_end_log();
     void lcd_emergency_log();
     void lcd_output_door_log();
