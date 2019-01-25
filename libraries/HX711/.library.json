@@ -1,0 +1,34 @@
+{
+    "name": "HX711", 
+    "repository": {
+        "url": "https://github.com/bogde/HX711.git", 
+        "type": "git"
+    }, 
+    "platforms": [
+        "atmelavr", 
+        "espressif8266"
+    ], 
+    "frameworks": [
+        "arduino"
+    ], 
+    "version": "0.1", 
+    "export": {
+        "exclude": "tests"
+    }, 
+    "examples": "examples/*/*.ino", 
+    "authors": [
+        {
+            "maintainer": false, 
+            "name": "bogde", 
+            "url": "https://github.com/bogde", 
+            "email": null
+        }
+    ], 
+    "keywords": [
+        "hx711", 
+        "scale", 
+        "weight"
+    ], 
+    "id": 1100, 
+    "description": "An Arduino library to interface the Avia Semiconductor HX711 24-Bit Analog-to-Digital Converter (ADC) for Weight Scales."
+}

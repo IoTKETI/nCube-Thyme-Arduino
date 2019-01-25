@@ -71,6 +71,46 @@ int DFRobotHighTemperature::readTemperature(int PIN)     //Get temperature
     }
     return mid;
 }
+int DFRobotHighTemperature::readTemperature2(int sensorValue)     //Get temperature
+{
+    //int sensorValue = analogRead(PIN);
+    float voltage = 0,res = 0;
+    //voltage = sensorValue * _voltageRef / 1024.0;  //If your microcontroller are a 12 bit ADC, you should be change 1024 to 4096
+	voltage = sensorValue * _voltageRef / 1024.0;  //If your microcontroller are a 12 bit ADC, you should be change 1024 to 4096
+	//If you have a DS18B20 on hand, you can make a more accurate calibration.
+	//change 220.9 to 210.9 or 230.9,and you need change 2.209 to 2.109 or 2.309 at the same time to accurate calibration.
+	res =  (1800 * voltage + 250.9 * 18) / (2.509 * 18 - voltage);
+	//res =  (1800 * voltage + 235.9 * 18) / (2.359 * 18 - voltage);
+	//searched by the halving method
+    int front = 0, end = 0, mid = 0;
+    front = 0;
+    end = 399;
+    mid = (front + end) / 2;
+    while (front < end && pgm_read_float(&PT100Tab[mid]) != res) {
+        if (pgm_read_float(&PT100Tab[mid]) < res) {
+            if (pgm_read_float(&PT100Tab[mid + 1]) < res) {
+                front = mid + 1;
+            }
+            else {
+                mid = comp(res, mid);
+                return mid;
+            }
+        }
+
+        if (pgm_read_float(&PT100Tab[mid]) > res) {
+            if (pgm_read_float(&PT100Tab[mid - 1]) > res) {
+                end = mid - 1;
+            }
+            else {
+                mid = comp(res, mid - 1);
+                return mid;
+            }
+        }
+
+        mid = front + (end - front) / 2;
+    }
+    return mid;
+}
 int DFRobotHighTemperature::comp(float pt, int i) //Which number is closer on the two adjacent numbers.
 {
     if ((pt - pgm_read_float(&PT100Tab[i])) > (pgm_read_float(&PT100Tab[i + 1]) - pgm_read_float(&PT100Tab[i])) / 2 ) {

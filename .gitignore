@@ -1,0 +1,105 @@
+libraries/WiFi101/src/spi_flash/.dropbox.attr
+.dropbox.attr
+libraries/.dropbox.attr
+libraries/Adafruit LiquidCrystal/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/Autoscroll/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/Blink/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/Cursor/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/Display/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/HelloWorld/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/HelloWorld_SPI/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/HelloWorld_i2c/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/Scroll/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/SerialDisplay/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/TextDirection/.dropbox.attr
+libraries/Adafruit LiquidCrystal/examples/setCursor/.dropbox.attr
+libraries/Adafruit LiquidCrystal/utility/.dropbox.attr
+libraries/ArduinoJson/.dropbox.attr
+libraries/ArduinoJson/.github/.dropbox.attr
+libraries/ArduinoJson/examples/.dropbox.attr
+libraries/ArduinoJson/examples/JsonConfigFile/.dropbox.attr
+libraries/ArduinoJson/examples/JsonGeneratorExample/.dropbox.attr
+libraries/ArduinoJson/examples/JsonHttpClient/.dropbox.attr
+libraries/ArduinoJson/examples/JsonParserExample/.dropbox.attr
+libraries/ArduinoJson/examples/JsonServer/.dropbox.attr
+libraries/ArduinoJson/examples/JsonUdpBeacon/.dropbox.attr
+libraries/ArduinoJson/examples/ProgmemExample/.dropbox.attr
+libraries/ArduinoJson/examples/StringExample/.dropbox.attr
+libraries/ArduinoJson/src/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/Data/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/Deserialization/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/Polyfills/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/Serialization/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/StringTraits/.dropbox.attr
+libraries/ArduinoJson/src/ArduinoJson/TypeTraits/.dropbox.attr
+libraries/FlashStorage/.dropbox.attr
+libraries/FlashStorage/examples/.dropbox.attr
+libraries/FlashStorage/examples/EmulateEEPROM/.dropbox.attr
+libraries/FlashStorage/examples/FlashStoreAndRetrieve/.dropbox.attr
+libraries/FlashStorage/examples/StoreNameAndSurname/.dropbox.attr
+libraries/FlashStorage/src/.dropbox.attr
+libraries/HX711/.dropbox.attr
+libraries/HX711/examples/.dropbox.attr
+libraries/HX711/examples/HX711Serial/.dropbox.attr
+libraries/OneM2MClient/.dropbox.attr
+libraries/OneM2MClient/examples/.dropbox.attr
+libraries/OneM2MClient/examples/nCube-Air/.dropbox.attr
+libraries/OneM2MClient/examples/nCube-Base/.dropbox.attr
+libraries/OneM2MClient/src/.dropbox.attr
+libraries/OverTheAir/.dropbox.attr
+libraries/PubSubClient/.dropbox.attr
+libraries/PubSubClient/examples/.dropbox.attr
+libraries/PubSubClient/examples/mqtt_auth/.dropbox.attr
+libraries/PubSubClient/examples/mqtt_basic/.dropbox.attr
+libraries/PubSubClient/examples/mqtt_esp8266/.dropbox.attr
+libraries/PubSubClient/examples/mqtt_publish_in_callback/.dropbox.attr
+libraries/PubSubClient/examples/mqtt_reconnect_nonblocking/.dropbox.attr
+libraries/PubSubClient/examples/mqtt_stream/.dropbox.attr
+libraries/PubSubClient/src/.dropbox.attr
+libraries/TasAquarium/.dropbox.attr
+libraries/TasCCS811/.dropbox.attr
+libraries/TasCO2/.dropbox.attr
+libraries/TasDryer/.dropbox.attr
+libraries/TasLED/.dropbox.attr
+libraries/WiFi101/.dropbox.attr
+libraries/WiFi101/examples/.dropbox.attr
+libraries/WiFi101/examples/AP_SimpleWebServer/.dropbox.attr
+libraries/WiFi101/examples/CheckWifi101FirmwareVersion/.dropbox.attr
+libraries/WiFi101/examples/ConnectNoEncryption/.dropbox.attr
+libraries/WiFi101/examples/ConnectWithWEP/.dropbox.attr
+libraries/WiFi101/examples/ConnectWithWPA/.dropbox.attr
+libraries/WiFi101/examples/FirmwareUpdater/.dropbox.attr
+libraries/WiFi101/examples/MDNS_WiFiWebServer/.dropbox.attr
+libraries/WiFi101/examples/Provisioning_WiFiWebServer/.dropbox.attr
+libraries/WiFi101/examples/ScanNetworks/.dropbox.attr
+libraries/WiFi101/examples/ScanNetworksAdvanced/.dropbox.attr
+libraries/WiFi101/examples/SimpleWebServerWiFi/.dropbox.attr
+libraries/WiFi101/examples/WiFiChatServer/.dropbox.attr
+libraries/WiFi101/examples/WiFiPing/.dropbox.attr
+libraries/WiFi101/examples/WiFiSSLClient/.dropbox.attr
+libraries/WiFi101/examples/WiFiUdpNtpClient/.dropbox.attr
+libraries/WiFi101/examples/WiFiUdpSendReceiveString/.dropbox.attr
+libraries/WiFi101/examples/WiFiWebClient/.dropbox.attr
+libraries/WiFi101/examples/WiFiWebClientRepeating/.dropbox.attr
+libraries/WiFi101/examples/WiFiWebServer/.dropbox.attr
+libraries/WiFi101/src/.dropbox.attr
+libraries/WiFi101/src/bsp/.dropbox.attr
+libraries/WiFi101/src/bsp/include/.dropbox.attr
+libraries/WiFi101/src/bsp/source/.dropbox.attr
+libraries/WiFi101/src/bus_wrapper/.dropbox.attr
+libraries/WiFi101/src/bus_wrapper/include/.dropbox.attr
+libraries/WiFi101/src/bus_wrapper/source/.dropbox.attr
+libraries/WiFi101/src/common/.dropbox.attr
+libraries/WiFi101/src/common/include/.dropbox.attr
+libraries/WiFi101/src/common/source/.dropbox.attr
+libraries/WiFi101/src/driver/.dropbox.attr
+libraries/WiFi101/src/driver/include/.dropbox.attr
+libraries/WiFi101/src/driver/source/.dropbox.attr
+libraries/WiFi101/src/socket/.dropbox.attr
+libraries/WiFi101/src/socket/include/.dropbox.attr
+libraries/WiFi101/src/socket/source/.dropbox.attr
+libraries/WiFi101/src/spi_flash/include/.dropbox.attr
+libraries/WiFi101/src/spi_flash/source/.dropbox.attr
+libraries/WiFi101/src/utility/.dropbox.attr

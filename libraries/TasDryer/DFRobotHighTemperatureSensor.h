@@ -56,5 +56,6 @@ public:
     DFRobotHighTemperature(float v);	//Constructor
     ~DFRobotHighTemperature();			//Destructor
     int readTemperature(int PIN);		//Get temperature
+    int readTemperature2(int sensorValue);		//Get temperature
 };
 #endif
