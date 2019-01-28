@@ -1,15 +1,15 @@
 /*
-    TasMySignals.cpp - Library for MySignal HW v2
+    TasAgingSignals.cpp - Library for MySignal HW v2
     Created by Chanhyung Lee in KETI Korea, November 24, 2018.
     Released into the public domain.
 */
 
-#include "TasMySignals.h"
+#include "TasAgingSignals.h"
 
 Adafruit_LiquidCrystal lcd(0);
 #define LCD_GND 5
 
-void TasMySignals::begin() {
+void TasAgingSignals::begin() {
     Serial1.begin(9600);
     delay(300);
 
@@ -19,7 +19,7 @@ void TasMySignals::begin() {
     pinMode(spo2Pin, INPUT_PULLUP);
     pinMode(glucometerPin, INPUT_PULLUP);
 
-    TasMySignals::LCD_hello();
+    TasAgingSignals::LCD_hello();
 
     _btnDownFlag = UP;
     _btnDownCnt = 0;
@@ -28,14 +28,14 @@ void TasMySignals::begin() {
 }
 
 
-void TasMySignals::loop() {
-    TasMySignals::sensingRequester();
-    TasMySignals::dataReciever();
-    TasMySignals::dataLoader();
-    TasMySignals::getButton();
+void TasAgingSignals::loop() {
+    TasAgingSignals::sensingRequester();
+    TasAgingSignals::dataReciever();
+    TasAgingSignals::dataLoader();
+    TasAgingSignals::getButton();
 }
 
-void TasMySignals::sensorEnabler(uint8_t _sensor) {
+void TasAgingSignals::sensorEnabler(uint8_t _sensor) {
 
     sensorData.type = _sensor;
     sensorData.status = enabled;
@@ -44,27 +44,27 @@ void TasMySignals::sensorEnabler(uint8_t _sensor) {
 }
 
 
-void TasMySignals::sensingRequester() {
+void TasAgingSignals::sensingRequester() {
     if (sensorData.status == enabled) {
-        TasMySignals::LCD_clear();
-        TasMySignals::LCD_sensor(sensorData.type);
-        TasMySignals::LCD_status(enabled);
+        TasAgingSignals::LCD_clear();
+        TasAgingSignals::LCD_sensor(sensorData.type);
+        TasAgingSignals::LCD_status(enabled);
         if (sensorData.failCounter < max_failcnt) {
             Serial1.write(0x7E);
             Serial1.write(sensorData.type);
             Serial1.write(0x7F);
             sensorData.status = requested;
-            TasMySignals::LCD_status(requested);
+            TasAgingSignals::LCD_status(requested);
         }
         else {
             sensorData.status = failed;
-            TasMySignals::LCD_status(failed);
+            TasAgingSignals::LCD_status(failed);
         }
     }
 }
 
 
-void TasMySignals::dataReciever() {
+void TasAgingSignals::dataReciever() {
     if (Serial1.available() > 0) {
         char c = Serial1.read();
         if (_dataFlag == 1) {
@@ -77,11 +77,11 @@ void TasMySignals::dataReciever() {
             _dataFlag = 2;
         }
         if (_dataFlag == 1 && c == 0x7C) {
-            TasMySignals::LCD_status(connected);
+            TasAgingSignals::LCD_status(connected);
             _dataFrame_idx = 0;
         }
         if (_dataFlag == 1 && c == 0x7D) {
-            TasMySignals::LCD_status(sensing);
+            TasAgingSignals::LCD_status(sensing);
             _dataFrame_idx = 0;
         }
     }
@@ -89,7 +89,7 @@ void TasMySignals::dataReciever() {
     }
 }
 
-void TasMySignals::dataLoader() {
+void TasAgingSignals::dataLoader() {
     if (_dataFlag == 2 && sensorData.status == requested) {
         for (int j = 0; j < (_dataFrame_idx - 1); j++) {
             sensorData.data += _dataFrame[j];
@@ -103,8 +103,8 @@ void TasMySignals::dataLoader() {
         }
         else {
             sensorData.status = recieved;
-            TasMySignals::LCD_status(recieved);
-            TasMySignals::LCD_data(sensorData.type, sensorData.data);
+            TasAgingSignals::LCD_status(recieved);
+            TasAgingSignals::LCD_data(sensorData.type, sensorData.data);
         }
 
         _dataFrame_idx = 0;
@@ -112,7 +112,7 @@ void TasMySignals::dataLoader() {
     }
 }
 
-void TasMySignals::getButton() {
+void TasAgingSignals::getButton() {
     if (sensorData.status == disabled) {
         uint8_t _tempBtn = digitalRead(temperaturePin);
         uint8_t _spiroBtn = digitalRead(spirometerPin);
@@ -159,15 +159,15 @@ void TasMySignals::getButton() {
 }
 
 
-void TasMySignals::LCD_hello() {
+void TasAgingSignals::LCD_hello() {
     lcd.begin(20, 4);
     lcd.setBacklight(HIGH);
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("SmartAging-MySignals");
+    lcd.print("   Aging-Signals");
 }
 
-void TasMySignals::LCD_sensor(uint8_t sensor) {
+void TasAgingSignals::LCD_sensor(uint8_t sensor) {
     lcd.setCursor(0, 1);
     lcd.print("                    ");
     lcd.setCursor(0, 1);
@@ -190,7 +190,7 @@ void TasMySignals::LCD_sensor(uint8_t sensor) {
 }
 
 uint8_t _preStatus = disabled;
-void TasMySignals::LCD_status(uint8_t status) {
+void TasAgingSignals::LCD_status(uint8_t status) {
     if (_preStatus != status) {
         lcd.setCursor(0, 2);
         lcd.print("                    ");
@@ -219,7 +219,7 @@ void TasMySignals::LCD_status(uint8_t status) {
     }
 }
 
-void TasMySignals::LCD_data(uint8_t sensor, String data) {
+void TasAgingSignals::LCD_data(uint8_t sensor, String data) {
     lcd.setCursor(0, 3);
     lcd.print("                    ");
     lcd.setCursor(0, 3);
@@ -245,7 +245,7 @@ void TasMySignals::LCD_data(uint8_t sensor, String data) {
     }
 }
 
-void TasMySignals::LCD_clear() {
+void TasAgingSignals::LCD_clear() {
     lcd.setCursor(0, 1);
     lcd.print("                    ");
     lcd.setCursor(0, 2);
