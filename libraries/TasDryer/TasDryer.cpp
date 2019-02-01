@@ -270,6 +270,10 @@ void TasDryer::begin() {
         dryerInfo.calibration_factor = -3004.89;
         dryerInfo.calibration_value = -1738.1;
 
+        // 아일랜드 장비
+        dryerInfo.calibration_factor = -2750.84;
+        dryerInfo.calibration_value = -1738.1;
+
         scale.set_scale(dryerInfo.calibration_factor);
         dryerInfo.calibration_value += get_loadcell_4tare();
 
@@ -2269,7 +2273,7 @@ float_t TasDryer::get_loadcell() {
     weight -= dryerInfo.calibration_value;
 
     // for chile dryer, temperally
-    weight += 23.3;
+    //weight += 23.3;
 
     if(_dryerState == STATE_MICRO) {
         if(scale_avg < weight) {
