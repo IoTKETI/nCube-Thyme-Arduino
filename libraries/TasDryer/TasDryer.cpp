@@ -270,6 +270,10 @@ void TasDryer::begin() {
         dryerInfo.calibration_factor = -3004.89;
         dryerInfo.calibration_value = -1738.1;
 
+        // 아일랜드 장비
+        dryerInfo.calibration_factor = -2750.84;
+        dryerInfo.calibration_value = -1738.1;
+        
         scale.set_scale(dryerInfo.calibration_factor);
         dryerInfo.calibration_value += get_loadcell_4tare();
 
@@ -1264,6 +1268,8 @@ void TasDryer::stirrer() {
                     _dryerEvent &= ~EVENT_DRYER_STIRRER_TICK;
 
                     //request_stirrer_current();
+
+                    set_stirrer(TURN);
                 }
                 else if(_dryerEvent & EVENT_DRYER_STIRRER_CURRENT) {
                     _dryerEvent &= ~EVENT_DRYER_STIRRER_CURRENT;
@@ -1395,6 +1401,7 @@ void TasDryer::micro() {
         }
 
         if(micro_pause == 1) {
+            set_stirrer(STOP);
             off_all_power_supply();
             _preMicroMode = _microMode;
             lcd_pause_log();
@@ -1402,6 +1409,7 @@ void TasDryer::micro() {
             pause_remain_time = TIME_MICRO - (_curTick - _preTick);
         }
         else {
+            set_stirrer(TURN);
             _microMode = _preMicroMode;
             _microIdx--;
             if(_microIdx == 0) {
@@ -1457,6 +1465,7 @@ void TasDryer::micro() {
                     _dryerEvent &= ~EVENT_DRYER_STIRRER_TICK;
 
                     //request_stirrer_current();
+                    set_stirrer(TURN);
                 }
                 else if(_dryerEvent & EVENT_DRYER_STIRRER_CURRENT) {
                     _dryerEvent &= ~EVENT_DRYER_STIRRER_CURRENT;
@@ -1992,10 +2001,15 @@ void TasDryer::set_stirrer_forward() {
 
     inverterFrame[idx++] = '2';
 
-    inverterFrame[idx++] = '0';
-    inverterFrame[idx++] = 'F';
-    inverterFrame[idx++] = 'A';
-    inverterFrame[idx++] = '0';
+    // inverterFrame[idx++] = '0';
+    // inverterFrame[idx++] = 'F';
+    // inverterFrame[idx++] = 'A';
+    // inverterFrame[idx++] = '0';
+
+    inverterFrame[idx++] = '1';
+    inverterFrame[idx++] = '3';
+    inverterFrame[idx++] = '8';
+    inverterFrame[idx++] = '8';
 
     inverterFrame[idx++] = '0';
     inverterFrame[idx++] = '0';
@@ -2053,15 +2067,15 @@ void TasDryer::set_stirrer_high_forward() {
 
     inverterFrame[idx++] = '2';
 
-    // inverterFrame[idx++] = '1';
-    // inverterFrame[idx++] = '7';
-    // inverterFrame[idx++] = '7';
-    // inverterFrame[idx++] = '0';
+    inverterFrame[idx++] = '1';
+    inverterFrame[idx++] = '7';
+    inverterFrame[idx++] = '7';
+    inverterFrame[idx++] = '0';
 
-    inverterFrame[idx++] = '0';
-    inverterFrame[idx++] = 'F';
-    inverterFrame[idx++] = 'A';
-    inverterFrame[idx++] = '0';
+    // inverterFrame[idx++] = '0';
+    // inverterFrame[idx++] = 'F';
+    // inverterFrame[idx++] = 'A';
+    // inverterFrame[idx++] = '0';
 
     inverterFrame[idx++] = '0';
     inverterFrame[idx++] = '0';
@@ -2119,10 +2133,15 @@ void TasDryer::set_stirrer_backward() {
 
     inverterFrame[idx++] = '2';
 
-    inverterFrame[idx++] = '0';
-    inverterFrame[idx++] = 'F';
-    inverterFrame[idx++] = 'A';
-    inverterFrame[idx++] = '0';
+    // inverterFrame[idx++] = '0';
+    // inverterFrame[idx++] = 'F';
+    // inverterFrame[idx++] = 'A';
+    // inverterFrame[idx++] = '0';
+
+    inverterFrame[idx++] = '1';
+    inverterFrame[idx++] = '3';
+    inverterFrame[idx++] = '8';
+    inverterFrame[idx++] = '8';
 
     inverterFrame[idx++] = '0';
     inverterFrame[idx++] = '0';
@@ -2269,9 +2288,13 @@ float_t TasDryer::get_loadcell() {
     weight -= dryerInfo.calibration_value;
 
     // for chile dryer, temperally
-    weight += 23.3;
+    //weight += 23.3;
 
-    if(_dryerState == STATE_MICRO) {
+    if(_dryerState == STATE_MICRO || _dryerState == STATE_STIRRER) {
+        if(weight < 0.0) {
+            weight = scale_avg;
+        }
+
         if(scale_avg < weight) {
             weight = scale_avg;
         }
@@ -2971,7 +2994,8 @@ void TasDryer::set_micro() {
             }
             else {
                 _microMode = MICRO_MODE2;
-                set_micro_mode2();
+                //set_micro_mode2();
+                set_micro_mode1();
             }
             // _microMode = MICRO_MODE2;
             // set_micro_mode2();
@@ -2999,7 +3023,8 @@ void TasDryer::set_micro() {
             set_micro_mode_off();
         }
         else {
-            set_micro_mode2();
+            //set_micro_mode2();
+            set_micro_mode1();
         }
     }
     else if(_microMode == MICRO_MODE3) {
@@ -3007,7 +3032,8 @@ void TasDryer::set_micro() {
             _microTick = 0;
             if(_w1 > 20.0) {
                 _microMode = MICRO_MODE2;
-                set_micro_mode2();
+                //set_micro_mode2();
+                set_micro_mode1();
             }
             else {
                 _microMode = MICRO_MODE3;

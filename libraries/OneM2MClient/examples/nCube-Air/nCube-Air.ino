@@ -71,7 +71,7 @@ unsigned long chk_count = 0;
 #define UPLOAD_UPLOADING 2
 #define UPLOAD_UPLOADED 3
 unsigned long uploading_previousMillis = 0;
-const long uploading_interval = 15000; // ms
+const long uploading_interval = 10000; // ms
 uint8_t UPLOAD_State = UPLOAD_UPLOADING;
 uint8_t upload_retry_count = 0;
 
@@ -109,7 +109,7 @@ unsigned long system_watchdog = 0;
 // -----------------------------------------------------------------------------
 // User Define
 // Period of Sensor Data, can make more
-const unsigned long base_generate_interval = 10 * 1000;
+const unsigned long base_generate_interval = 20 * 1000;
 unsigned long temp_generate_previousMillis = 0;
 unsigned long temp_generate_interval = base_generate_interval;
 unsigned long tvoc_generate_previousMillis = 0;
@@ -123,7 +123,7 @@ String AE_NAME = "air1";
 String AE_ID = "S" + AE_NAME;
 const String CSE_ID = "/Mobius2";
 const String CB_NAME = "Mobius";
-const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161";
+const char* MOBIUS_MQTT_BROKER_IP = "203.253.128.161"; //"192.168.33.86";
 const uint16_t MOBIUS_MQTT_BROKER_PORT = 1883;
 
 OneM2MClient nCube;
@@ -138,7 +138,7 @@ TasCCS811 TasCCSSensor;
 
 // build tree of resource of oneM2M
 void buildResource() {
-    nCube.configResource(2, "/"+CB_NAME, AE_NAME);                    // AE resource
+    nCube.configResource(2, "/"+CB_NAME, AE_NAME);                       // AE resource
 
     nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "update");          // Container resource
     nCube.configResource(3, "/"+CB_NAME+"/"+AE_NAME, "co2");             // Container resource
@@ -590,7 +590,7 @@ void publisher() {
     if (currentMillis - req_previousMillis >= req_interval) {
         req_previousMillis = currentMillis;
 
-//        rand_str(req_id, 8);
+        rand_str(req_id, 8);
         nCube_State = NCUBE_REQUESTED;
     }
 
@@ -818,15 +818,15 @@ void mqtt_reconnect() {
 void mqtt_message_handler(char* topic_in, byte* payload, unsigned int length) {
     String topic = String(topic_in);
 
-    // Serial.print("Message arrived [");
-    // Serial.print(topic);
-    // Serial.print("] <---- ");
-    // Serial.println(length);
-    //
-    // for (unsigned int i = 0; i < length; i++) {
-    //     Serial.print((char)payload[i]);
-    // }
-    // Serial.println();
+    Serial.print("Message arrived [");
+    Serial.print(topic);
+    Serial.print("] <---- ");
+    Serial.println(length);
+
+    for (unsigned int i = 0; i < length; i++) {
+        Serial.print((char)payload[i]);
+    }
+    Serial.println();
 
     //noInterrupts();
 
