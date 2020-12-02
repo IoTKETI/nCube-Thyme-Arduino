@@ -837,6 +837,7 @@ void mqtt_message_handler(char* topic_in, byte* payload, unsigned int length) {
 
         if (!resp_root.success()) {
             Serial.println(F("parseObject() failed"));
+            jsonBuffer.clear();
             return;
         }
 
